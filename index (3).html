@@ -1,0 +1,3189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WORKNET · Live Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ── Design tokens ───────────────────────────────────────────────── */
+  :root {
+    --ink-0:   #04050a;
+    --ink-1:   #080a12;
+    --ink-2:   #0f121c;
+    --ink-3:   #171b26;
+    --ink-4:   #222734;
+    --line:    rgba(255,255,255,0.06);
+    --line-2:  rgba(255,255,255,0.14);
+
+    --fg:      #ecf0fa;
+    --fg-mute: #8a92a6;
+    --fg-dim:  #5a6174;
+
+    --amber:   #ffb020;
+    --amber-h: #ffc24e;
+    --amber-g: rgba(255,176,32,0.14);
+    --amber-line: rgba(255,176,32,0.35);
+
+    --acid:    #7dff54;
+    --acid-h:  #a8ff88;
+    --acid-g:  rgba(125,255,84,0.14);
+    --acid-line: rgba(125,255,84,0.35);
+
+    --warn:    #ff8a3d;
+    --crit:    #ff4560;
+    --info:    #6cb4ff;
+    --plum:    #b57bff;
+    --cyan:    #4fe3d9;
+
+    --radius-s: 8px;
+    --radius-m: 14px;
+    --radius-l: 22px;
+
+    --shadow-1: 0 1px 0 rgba(255,255,255,0.04) inset, 0 20px 40px -20px rgba(0,0,0,0.7);
+    --shadow-2: 0 0 0 1px var(--line) inset, 0 40px 80px -40px rgba(0,0,0,0.9);
+    --glow-acid:  0 0 28px -4px rgba(125,255,84,0.55);
+    --glow-amber: 0 0 28px -4px rgba(255,176,32,0.55);
+    --glow-info:  0 0 28px -4px rgba(108,180,255,0.55);
+    --glow-plum:  0 0 28px -4px rgba(181,123,255,0.55);
+
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-in-out: cubic-bezier(0.83, 0, 0.17, 1);
+    --dur-fast: 180ms;
+    --dur-med:  320ms;
+    --dur-slow: 620ms;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--fg);
+    background: var(--ink-0);
+    overflow-x: hidden;
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Ambient layered background ───────────────────────────────────── */
+  .bg-stage { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .bg-mesh {
+    position: absolute; inset: -20%;
+    background:
+      radial-gradient(48vw 34vw at 10% 8%,  rgba(255,176,32,0.16), transparent 60%),
+      radial-gradient(42vw 30vw at 95% 28%, rgba(108,180,255,0.14), transparent 60%),
+      radial-gradient(40vw 32vw at 50% 110%, rgba(125,255,84,0.14), transparent 60%),
+      radial-gradient(36vw 26vw at 80% 90%, rgba(181,123,255,0.12), transparent 60%);
+    animation: meshDrift 36s ease-in-out infinite alternate;
+    filter: blur(30px);
+  }
+  @keyframes meshDrift {
+    0%   { transform: translate3d(0,0,0) scale(1)    rotate(0deg); }
+    50%  { transform: translate3d(-4%, 2%, 0) scale(1.08) rotate(2deg); }
+    100% { transform: translate3d(3%, -2%, 0) scale(1.04) rotate(-2deg); }
+  }
+  .bg-aurora {
+    position: absolute; top: -18%; left: -10%; width: 120%; height: 70%;
+    background:
+      conic-gradient(from 180deg at 50% 50%,
+        rgba(255,176,32,0.28),
+        rgba(181,123,255,0.28),
+        rgba(125,255,84,0.28),
+        rgba(108,180,255,0.28),
+        rgba(255,176,32,0.28));
+    filter: blur(80px);
+    opacity: 0.35;
+    animation: auroraSpin 60s linear infinite;
+    mix-blend-mode: screen;
+  }
+  @keyframes auroraSpin {
+    to { transform: rotate(360deg); }
+  }
+  .bg-grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 85% 70% at 50% 40%, #000 30%, transparent 90%);
+    opacity: 0.35;
+    animation: gridShift 40s linear infinite;
+  }
+  @keyframes gridShift {
+    to { background-position: 56px 56px, 56px 56px; }
+  }
+  .bg-noise {
+    position: absolute; inset: 0; opacity: 0.04; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  #particles {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    opacity: 0.65;
+  }
+  .bg-scanline {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      180deg,
+      transparent 0,
+      transparent 3px,
+      rgba(255,255,255,0.015) 3px,
+      rgba(255,255,255,0.015) 4px
+    );
+    mix-blend-mode: overlay;
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  /* ── App shell ──────────────────────────────────────────────────── */
+  .app {
+    position: relative; z-index: 1;
+    min-height: 100%;
+    display: grid;
+    grid-template-rows: auto auto auto 1fr;
+  }
+
+  /* ── Top bar ────────────────────────────────────────────────────── */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(8,10,18,0.85), rgba(8,10,18,0.5));
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    position: sticky; top: 0; z-index: 20;
+  }
+  .topbar::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--amber) 40%, var(--acid) 60%, transparent 100%);
+    opacity: 0.4;
+    animation: topPulse 8s ease-in-out infinite;
+  }
+  @keyframes topPulse {
+    0%,100% { opacity: 0.2; transform: translateX(-20%); }
+    50%     { opacity: 0.6; transform: translateX(20%); }
+  }
+
+  .brand {
+    display: flex; align-items: center; gap: 14px;
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: 0.02em;
+  }
+  .brand .mark {
+    width: 40px; height: 40px; border-radius: 12px;
+    position: relative;
+    background: conic-gradient(from 140deg, var(--amber), #ff6a00, var(--acid), var(--info), var(--plum), var(--amber));
+    box-shadow: 0 0 0 1px var(--line-2) inset, 0 10px 28px -8px var(--amber);
+    overflow: hidden;
+    animation: markSpin 12s linear infinite;
+  }
+  @keyframes markSpin { to { transform: rotate(360deg); } }
+  .brand .mark::before {
+    content: ""; position: absolute; inset: 4px; border-radius: 8px;
+    background: var(--ink-0);
+  }
+  .brand .mark::after {
+    content: ""; position: absolute; inset: 12px; border-radius: 3px;
+    background: var(--amber);
+    box-shadow: 0 0 14px var(--amber), 0 0 30px -4px var(--amber);
+    animation: blink 2.4s ease-in-out infinite;
+  }
+  @keyframes blink {
+    0%,65%,100% { opacity: 1; transform: scale(1); }
+    72% { opacity: 0.1; transform: scale(0.6); }
+  }
+  .brand-text { display: flex; flex-direction: column; line-height: 1.1; }
+  .brand-text .name {
+    font-weight: 700; font-size: 18px; letter-spacing: 0.1em;
+    background: linear-gradient(90deg, var(--fg) 0%, var(--amber-h) 50%, var(--fg) 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+    animation: shimmerTxt 7s linear infinite;
+  }
+  @keyframes shimmerTxt {
+    to { background-position: -200% 0; }
+  }
+  .brand-text .sub {
+    font-size: 11px; color: var(--fg-dim);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 13px;
+    border: 1px solid var(--line-2);
+    border-radius: 999px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--fg-mute);
+    background: rgba(255,255,255,0.02);
+    transition: all var(--dur-fast) var(--ease-out);
+  }
+  .chip:hover { border-color: var(--line-2); color: var(--fg); transform: translateY(-1px); }
+  .chip.live { color: var(--acid); border-color: var(--acid-line); background: var(--acid-g); box-shadow: var(--glow-acid); }
+  .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; position: relative; }
+  .chip.live .dot::after {
+    content: ""; position: absolute; inset: -4px; border-radius: 50%;
+    background: currentColor; opacity: 0.4;
+    animation: ping 1.6s cubic-bezier(0,0,0.2,1) infinite;
+  }
+  @keyframes ping {
+    0%   { transform: scale(1);   opacity: 0.6; }
+    80%, 100% { transform: scale(2.4); opacity: 0; }
+  }
+
+  .btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 9px 16px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--line-2);
+    cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-out);
+    display: inline-flex; align-items: center; gap: 7px;
+    position: relative; overflow: hidden;
+  }
+  .btn::before {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+    transform: translateX(-100%);
+    transition: transform 600ms var(--ease-out);
+  }
+  .btn:hover::before { transform: translateX(100%); }
+  .btn:hover { border-color: var(--amber-line); color: var(--amber); background: var(--amber-g); transform: translateY(-1px); }
+  .btn.primary { border-color: var(--amber); color: var(--amber); background: var(--amber-g); box-shadow: var(--glow-amber); }
+  .btn.primary:hover { background: var(--amber); color: var(--ink-0); }
+  .btn.danger { border-color: rgba(255,69,96,0.4); color: var(--crit); }
+  .btn.danger:hover { background: rgba(255,69,96,0.12); border-color: var(--crit); color: var(--crit); }
+  .btn .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* ── Hero KPI ───────────────────────────────────────────────────── */
+  .hero {
+    padding: 28px 28px 6px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    perspective: 1400px;
+  }
+  .kpi {
+    position: relative;
+    padding: 22px 22px 20px;
+    border-radius: var(--radius-l);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)) var(--ink-2);
+    border: 1px solid var(--line);
+    overflow: hidden;
+    isolation: isolate;
+    transform-style: preserve-3d;
+    transition: transform var(--dur-med) var(--ease-out),
+                border-color var(--dur-med) var(--ease-out),
+                box-shadow var(--dur-med) var(--ease-out);
+    animation: fadeUp var(--dur-slow) var(--ease-out) backwards;
+    will-change: transform;
+  }
+  .kpi:nth-child(1) { animation-delay: 0.05s; }
+  .kpi:nth-child(2) { animation-delay: 0.12s; }
+  .kpi:nth-child(3) { animation-delay: 0.19s; }
+  .kpi:nth-child(4) { animation-delay: 0.26s; }
+
+  .kpi:hover {
+    border-color: var(--accent-line, var(--line-2));
+    box-shadow: 0 24px 50px -22px rgba(0,0,0,0.8), 0 0 40px -18px var(--accent, var(--amber));
+  }
+
+  @keyframes fadeUp {
+    0%   { opacity: 0; transform: translateY(18px) scale(0.96); filter: blur(8px); }
+    100% { opacity: 1; transform: translateY(0)   scale(1);    filter: blur(0); }
+  }
+
+  .kpi::before {
+    content: "";
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent, var(--amber)), transparent);
+    opacity: 0.9;
+    animation: stripeFlow 4.5s linear infinite;
+    background-size: 300% 100%;
+  }
+  @keyframes stripeFlow {
+    from { background-position: 0 0; }
+    to   { background-position: 300% 0; }
+  }
+  .kpi::after {
+    content: attr(data-glyph);
+    position: absolute; top: 18px; right: 22px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+  }
+
+  .kpi .kpi-icon {
+    position: absolute; top: 16px; right: 52px;
+    width: 28px; height: 28px;
+    opacity: 0.5; color: var(--accent, var(--amber));
+    transition: opacity var(--dur-med) var(--ease-out), transform var(--dur-slow) var(--ease-spring);
+  }
+  .kpi:hover .kpi-icon { opacity: 1; transform: scale(1.1) rotate(6deg); }
+
+  .kpi .kpi-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px; letter-spacing: 0.15em;
+    color: var(--fg-mute); text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .kpi .kpi-value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(30px, 3.2vw, 46px);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+    display: flex; align-items: baseline; gap: 8px;
+    text-shadow: 0 0 40px rgba(255,255,255,0.08);
+  }
+  .kpi .kpi-value .num { display: inline-block; transition: color var(--dur-fast) var(--ease-out); }
+  .kpi.amber .kpi-value .num { background: linear-gradient(180deg, #fff, var(--amber-h)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .kpi.acid  .kpi-value .num { background: linear-gradient(180deg, #fff, var(--acid-h));  -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .kpi.info  .kpi-value .num { background: linear-gradient(180deg, #fff, var(--info));    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .kpi.plum  .kpi-value .num { background: linear-gradient(180deg, #fff, var(--plum));    -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  .kpi .kpi-unit { font-size: 14px; color: var(--fg-mute); font-weight: 500; }
+  .kpi .kpi-sub {
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--fg-mute);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .kpi .kpi-sub .delta {
+    color: var(--acid);
+    padding: 2px 8px;
+    border-radius: 5px;
+    background: var(--acid-g);
+    border: 1px solid var(--acid-line);
+    font-size: 10.5px;
+  }
+  .kpi .kpi-sub .delta.down { color: var(--crit); background: rgba(255,69,96,0.1); border-color: rgba(255,69,96,0.35); }
+
+  .kpi .spark { position: absolute; right: 0; bottom: 0; left: 0; height: 50px; opacity: 0.9; }
+  .kpi.amber { --accent: var(--amber); --accent-line: var(--amber-line); }
+  .kpi.acid  { --accent: var(--acid);  --accent-line: var(--acid-line);  }
+  .kpi.info  { --accent: var(--info);  --accent-line: rgba(108,180,255,0.35); }
+  .kpi.plum  { --accent: var(--plum);  --accent-line: rgba(181,123,255,0.35); }
+
+  .kpi .orb {
+    position: absolute; bottom: -40%; right: -15%;
+    width: 220px; height: 220px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, var(--accent, var(--amber)), transparent 60%);
+    opacity: 0.18; filter: blur(24px);
+    animation: orbFloat 18s ease-in-out infinite alternate;
+    pointer-events: none; z-index: -1;
+  }
+  @keyframes orbFloat {
+    0%   { transform: translate3d(0, 0, 0)      scale(1); }
+    100% { transform: translate3d(-18%, -14%, 0) scale(1.22); }
+  }
+
+  .kpi .flash {
+    position: absolute; inset: 0; border-radius: inherit;
+    background: radial-gradient(circle at 50% 50%, var(--accent, var(--amber)) 0%, transparent 60%);
+    opacity: 0; pointer-events: none;
+  }
+  .kpi.bump .flash { animation: flashPulse 900ms var(--ease-out); }
+  @keyframes flashPulse {
+    0%   { opacity: 0.0; }
+    25%  { opacity: 0.3; }
+    100% { opacity: 0; }
+  }
+  .kpi.bump .kpi-value .num { animation: kickNumber 640ms var(--ease-spring); }
+  @keyframes kickNumber {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.09); text-shadow: 0 0 40px rgba(255,255,255,0.5); }
+    100% { transform: scale(1); text-shadow: none; }
+  }
+
+  /* ── Dense stat strip (ticker) ──────────────────────────────────── */
+  .strip {
+    padding: 12px 28px 0;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 10px;
+  }
+  @media (max-width: 1400px) { .strip { grid-template-columns: repeat(4, 1fr); } }
+  @media (max-width: 680px)  { .strip { grid-template-columns: repeat(2, 1fr); } }
+  .chip-stat {
+    position: relative;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+    border: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 5px;
+    overflow: hidden;
+    transition: transform var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+    animation: fadeUp var(--dur-med) var(--ease-out) backwards;
+  }
+  .chip-stat:hover {
+    transform: translateY(-2px);
+    border-color: var(--cc, var(--line-2));
+    box-shadow: 0 12px 24px -18px rgba(0,0,0,0.7), 0 0 20px -12px var(--cc);
+  }
+  .chip-stat::before {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+    background: var(--cc, var(--fg-dim));
+    opacity: 0.8;
+    box-shadow: 0 0 14px 0 var(--cc);
+  }
+  .chip-stat::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 100% 0%, var(--cc), transparent 60%);
+    opacity: 0.06;
+    pointer-events: none;
+  }
+  .chip-stat .k {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--fg-mute);
+  }
+  .chip-stat .v {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 19px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    color: var(--fg);
+    line-height: 1;
+    display: flex; align-items: baseline; gap: 4px;
+  }
+  .chip-stat .v .u { font-size: 10.5px; font-weight: 500; color: var(--fg-mute); margin-left: 4px; letter-spacing: 0; }
+  .chip-stat.acid  { --cc: var(--acid); }
+  .chip-stat.warn  { --cc: var(--warn); }
+  .chip-stat.info  { --cc: var(--info); }
+  .chip-stat.amber { --cc: var(--amber); }
+  .chip-stat.crit  { --cc: var(--crit); }
+  .chip-stat.plum  { --cc: var(--plum); }
+  .chip-stat .v.ok   { color: var(--acid);  text-shadow: 0 0 14px rgba(125,255,84,0.35); }
+  .chip-stat .v.warn { color: var(--warn);  text-shadow: 0 0 14px rgba(255,138,61,0.35); }
+  .chip-stat .v.crit { color: var(--crit);  text-shadow: 0 0 14px rgba(255,69,96,0.35); }
+  .chip-stat .v.info { color: var(--info);  text-shadow: 0 0 14px rgba(108,180,255,0.35); }
+  .chip-stat .v.amber{ color: var(--amber); text-shadow: 0 0 14px rgba(255,176,32,0.35); }
+
+  /* bar at bottom — tiny live indicator */
+  .chip-stat .bar {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 1.5px;
+    background: linear-gradient(90deg, transparent, var(--cc), transparent);
+    transform: translateX(-100%);
+    animation: barSweep 3.5s linear infinite;
+    opacity: 0.6;
+  }
+  @keyframes barSweep {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%);  }
+  }
+
+  /* ── Second row: chart + meta ───────────────────────────────────── */
+  .panel-row {
+    padding: 16px 28px 0;
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+  }
+  .panel {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)) var(--ink-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    overflow: hidden;
+    position: relative;
+  }
+  .panel::before {
+    content: "";
+    position: absolute; top: 0; left: 0; width: 60%; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+  }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+  .panel-head .title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fg);
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .panel-head .title::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--acid); box-shadow: 0 0 10px var(--acid);
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  .panel-head .meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--fg-mute);
+  }
+
+  .chart-host { padding: 10px 12px 14px; position: relative; height: 240px; }
+  .chart-legend {
+    position: absolute; top: 14px; right: 22px;
+    display: flex; gap: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--fg-mute);
+  }
+  .chart-legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .chart-legend .sw { width: 14px; height: 3px; border-radius: 2px; box-shadow: 0 0 10px currentColor; }
+
+  /* ── Epoch + rewards stack ──────────────────────────────────────── */
+  .meta-stack { display: flex; flex-direction: column; }
+  .meta-stack .panel-body { padding: 16px 20px; }
+  .meta-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--line);
+    transition: padding-left var(--dur-fast) var(--ease-out);
+  }
+  .meta-row:hover { padding-left: 8px; background: linear-gradient(90deg, rgba(255,255,255,0.025), transparent); }
+  .meta-row:last-child { border-bottom: none; }
+  .meta-row .k {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--fg-mute);
+  }
+  .meta-row .v {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    font-size: 16px;
+    color: var(--fg);
+  }
+  .meta-row .v.acid { color: var(--acid); }
+  .meta-row .v.amber { color: var(--amber); }
+  .meta-row .v.info { color: var(--info); }
+
+  /* ── Ring gauge row ─────────────────────────────────────────────── */
+  .rings {
+    padding: 16px 28px 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 1100px) { .rings { grid-template-columns: repeat(2, 1fr); } }
+  .ring-card {
+    position: relative;
+    padding: 18px 18px 16px;
+    border-radius: var(--radius-m);
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)) var(--ink-2);
+    border: 1px solid var(--line);
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 86px 1fr;
+    gap: 16px;
+    align-items: center;
+    animation: fadeUp var(--dur-slow) var(--ease-out) backwards;
+    transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+  }
+  .ring-card:hover { border-color: var(--cc, var(--line-2)); box-shadow: 0 0 24px -14px var(--cc); }
+  .ring-card::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+    background: var(--cc); opacity: 0.6;
+    box-shadow: 0 0 16px 0 var(--cc);
+  }
+  .ring-card.acid  { --cc: var(--acid);  }
+  .ring-card.amber { --cc: var(--amber); }
+  .ring-card.info  { --cc: var(--info);  }
+  .ring-card.plum  { --cc: var(--plum);  }
+  .ring-card .ring {
+    width: 86px; height: 86px; position: relative;
+    flex-shrink: 0;
+  }
+  .ring-card .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring-card .ring .bg-track { stroke: rgba(255,255,255,0.08); }
+  .ring-card .ring .fg-arc {
+    stroke: var(--cc);
+    fill: none;
+    stroke-linecap: round;
+    transition: stroke-dashoffset var(--dur-slow) var(--ease-out);
+    filter: drop-shadow(0 0 6px var(--cc));
+  }
+  .ring-card .ring .num {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+  }
+  .ring-card .ring .num .lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5px; letter-spacing: 0.14em; color: var(--fg-mute);
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+  .ring-card .info-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .ring-card .info-col .ttl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px; letter-spacing: 0.14em; color: var(--fg-mute);
+    text-transform: uppercase;
+  }
+  .ring-card .info-col .big {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 24px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+  }
+  .ring-card .info-col .big .u { font-size: 12px; color: var(--fg-mute); margin-left: 4px; font-weight: 500; }
+  .ring-card .info-col .sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--fg-dim);
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Batch progression banner ─────────────────────────────────── */
+  .batchbar {
+    padding: 16px 28px 0;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    align-items: stretch;
+  }
+  @media (max-width: 900px) { .batchbar { grid-template-columns: 1fr; } }
+  .batch-panel {
+    position: relative;
+    padding: 18px 22px;
+    border-radius: var(--radius-m);
+    background: linear-gradient(135deg, rgba(255,176,32,0.06) 0%, rgba(125,255,84,0.04) 60%, rgba(255,255,255,0.02) 100%) var(--ink-2);
+    border: 1px solid var(--amber-line);
+    overflow: hidden;
+    animation: fadeUp var(--dur-slow) var(--ease-out) backwards;
+  }
+  .batch-panel::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--amber), var(--acid), var(--amber));
+    background-size: 300% 100%;
+    animation: stripeFlow 4s linear infinite;
+  }
+  .batch-panel .hdr {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .batch-panel .hdr .title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg);
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .batch-panel .hdr .title::before {
+    content: ""; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--amber); box-shadow: 0 0 12px var(--amber);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .batch-panel .hdr .range {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 26px;
+    color: var(--amber);
+    letter-spacing: -0.01em;
+    text-shadow: 0 0 24px rgba(255,176,32,0.4);
+  }
+  .batch-panel .hdr .next {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--fg-mute);
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--line-2);
+  }
+  .batch-panel .hdr .next .arrow { color: var(--amber); }
+  .batch-panel .hdr .next .to { color: var(--acid); font-weight: 600; }
+
+  .batch-panel .progress-track {
+    position: relative;
+    height: 16px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .batch-panel .progress-fill {
+    position: absolute; top: 0; bottom: 0; left: 0;
+    background: linear-gradient(90deg, var(--amber), var(--acid), var(--cyan));
+    background-size: 200% 100%;
+    animation: gradShift 3s linear infinite;
+    transition: width 800ms var(--ease-out);
+    box-shadow: 0 0 24px -4px var(--amber);
+  }
+  @keyframes gradShift { to { background-position: -200% 0; } }
+  .batch-panel .progress-fill::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    animation: shimmer 2s linear infinite;
+  }
+  .batch-panel .progress-ticks {
+    position: absolute; inset: 0; display: flex; pointer-events: none;
+  }
+  .batch-panel .progress-ticks span {
+    flex: 1; border-right: 1px solid rgba(255,255,255,0.07);
+  }
+  .batch-panel .progress-ticks span:last-child { border-right: none; }
+
+  .batch-panel .progress-meta {
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--fg-mute);
+    gap: 12px;
+  }
+  .batch-panel .progress-meta .kvi { display: inline-flex; align-items: center; gap: 6px; }
+  .batch-panel .progress-meta .kvi b {
+    color: var(--fg); font-weight: 600;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  .batch-panel .progress-meta .kvi b.ok   { color: var(--acid); }
+  .batch-panel .progress-meta .kvi b.warn { color: var(--warn); }
+  .batch-panel .progress-meta .kvi b.info { color: var(--info); }
+  .batch-panel .progress-meta .kvi b.amber{ color: var(--amber); }
+
+  /* batch queue (small chips on right) */
+  .batch-queue {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 18px 22px;
+    border-radius: var(--radius-m);
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)) var(--ink-2);
+    border: 1px solid var(--line);
+    min-width: 260px;
+  }
+  .batch-queue .ttl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--fg-mute);
+    margin-bottom: 4px;
+  }
+  .batch-queue .q-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px;
+    border-radius: 7px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--fg-mute);
+    transition: all var(--dur-fast) var(--ease-out);
+  }
+  .batch-queue .q-row .idx {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 4px;
+    background: rgba(255,255,255,0.05);
+    color: var(--fg-mute);
+    font-size: 10px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .batch-queue .q-row .rng { flex: 1; color: var(--fg); font-weight: 500; letter-spacing: 0.02em; }
+  .batch-queue .q-row .st {
+    font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 999px;
+    background: rgba(255,255,255,0.04); color: var(--fg-dim);
+    border: 1px solid var(--line);
+  }
+  .batch-queue .q-row.active {
+    background: var(--amber-g);
+    border-color: var(--amber-line);
+    color: var(--fg);
+    box-shadow: 0 0 20px -10px var(--amber);
+  }
+  .batch-queue .q-row.active .idx { background: var(--amber); color: var(--ink-0); }
+  .batch-queue .q-row.active .st  { color: var(--amber); border-color: var(--amber-line); background: rgba(255,176,32,0.12); }
+  .batch-queue .q-row.done { opacity: 0.5; }
+  .batch-queue .q-row.done .idx { background: var(--acid-g); color: var(--acid); }
+  .batch-queue .q-row.done .st  { color: var(--acid); border-color: var(--acid-line); background: var(--acid-g); }
+
+  /* ── Toolbar ────────────────────────────────────────────────────── */
+  .toolbar {
+    padding: 20px 28px 14px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .toolbar .search {
+    flex: 1; min-width: 220px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: var(--ink-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    transition: all var(--dur-fast) var(--ease-out);
+  }
+  .toolbar .search:focus-within {
+    border-color: var(--amber-line);
+    box-shadow: var(--glow-amber);
+    background: rgba(255,176,32,0.03);
+  }
+  .toolbar .search input {
+    background: transparent; border: none; outline: none;
+    color: var(--fg); width: 100%; font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .toolbar .search .icon { width: 15px; height: 15px; opacity: 0.6; }
+  .toolbar .select {
+    appearance: none;
+    background: var(--ink-2); color: var(--fg);
+    border: 1px solid var(--line); border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 9px 30px 9px 14px;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%238a92a6' d='M5 6L0 0h10z'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    transition: all var(--dur-fast) var(--ease-out);
+  }
+  .toolbar .select:hover { border-color: var(--line-2); color: var(--fg); }
+
+  /* ── Tabs ──────────────────────────────────────────────────────── */
+  .tabs {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px;
+    background: var(--ink-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    position: relative;
+  }
+  .tabs .tab {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 8px 14px;
+    border-radius: 7px;
+    color: var(--fg-mute);
+    cursor: pointer;
+    border: none; background: transparent;
+    transition: all var(--dur-fast) var(--ease-out);
+    display: inline-flex; align-items: center; gap: 7px;
+    position: relative; z-index: 1;
+  }
+  .tabs .tab .count {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+    color: var(--fg-mute);
+  }
+  .tabs .tab:hover { color: var(--fg); }
+  .tabs .tab.active { color: var(--ink-0); background: var(--amber); box-shadow: var(--glow-amber); }
+  .tabs .tab.active .count { background: rgba(0,0,0,0.2); color: var(--ink-0); }
+
+  /* ── Main grid + log pane ───────────────────────────────────────── */
+  .main {
+    padding: 0 28px 28px;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 16px;
+    min-height: 0;
+  }
+  @media (max-width: 1100px) {
+    .hero { grid-template-columns: repeat(2, 1fr); }
+    .panel-row { grid-template-columns: 1fr; }
+    .main { grid-template-columns: 1fr; }
+  }
+
+  .agents {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+    align-content: start;
+    perspective: 1200px;
+  }
+  .card {
+    position: relative;
+    padding: 16px 16px 14px;
+    border-radius: var(--radius-m);
+    background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0)) var(--ink-2);
+    border: 1px solid var(--line);
+    overflow: hidden;
+    transition: transform var(--dur-fast) var(--ease-out),
+                border-color var(--dur-fast) var(--ease-out),
+                box-shadow var(--dur-fast) var(--ease-out);
+    animation: cardIn var(--dur-slow) var(--ease-out) backwards;
+    isolation: isolate;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); filter: blur(3px); }
+    to   { opacity: 1; transform: translateY(0)   scale(1);    filter: blur(0); }
+  }
+  .card:hover {
+    transform: translateY(-3px) rotateX(2deg);
+    border-color: var(--line-2);
+    box-shadow: 0 24px 40px -22px rgba(0,0,0,0.75), 0 0 24px -16px var(--acid);
+  }
+  .card.running { border-color: rgba(125,255,84,0.22); }
+  .card.running::before {
+    content: ""; position: absolute; inset: -1px; border-radius: inherit;
+    background: conic-gradient(from 0deg, transparent 80%, var(--acid) 95%, transparent);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    padding: 1px; z-index: -1;
+    animation: rotate 6s linear infinite;
+    opacity: 0.55;
+  }
+  @keyframes rotate { to { transform: rotate(360deg); } }
+  .card.stopped { opacity: 0.55; }
+  .card.errored { border-color: rgba(255,69,96,0.3); }
+  .card.errored::after {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px;
+    background: var(--crit); opacity: 0.8; animation: errBar 0.9s ease-in-out infinite;
+  }
+  @keyframes errBar { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+  .card .head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .card .id {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+  }
+  .card .id .hash { color: var(--fg-dim); font-weight: 500; }
+  .card .status {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--line-2);
+    color: var(--fg-mute);
+  }
+  .card .status .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .card.running .status { color: var(--acid); border-color: var(--acid-line); background: var(--acid-g); }
+  .card.running .status .dot { box-shadow: 0 0 10px currentColor; animation: pulse 1.5s ease-in-out infinite; }
+  .card.errored .status { color: var(--crit); border-color: rgba(255,69,96,0.4); background: rgba(255,69,96,0.12); }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.5); opacity: 0.5; }
+  }
+
+  .card .addr {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--fg-dim);
+    letter-spacing: 0.02em;
+    margin-bottom: 10px;
+  }
+  .card .addr .w { color: var(--amber); margin-right: 6px; }
+
+  .card .progress {
+    position: relative;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.04);
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .card .progress .fill {
+    position: absolute; top: 0; bottom: 0; left: 0;
+    background: linear-gradient(90deg, var(--amber), var(--acid));
+    border-radius: 3px;
+    transition: width var(--dur-slow) var(--ease-out);
+    box-shadow: 0 0 12px -2px var(--amber);
+  }
+  .card .progress .fill::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+    animation: shimmer 1.6s linear infinite;
+  }
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  .card.capped .progress .fill { background: linear-gradient(90deg, var(--acid), var(--cyan)); box-shadow: 0 0 16px -2px var(--acid); }
+  .card.capped .status { color: var(--cyan); border-color: rgba(79,227,217,0.4); background: rgba(79,227,217,0.08); }
+
+  .card .grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+  .card .grid3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+  }
+  .card .meta-tail {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 10px; padding-top: 9px;
+    border-top: 1px dashed var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.04em;
+    color: var(--fg-dim);
+  }
+  .card .meta-tail .rw { color: var(--plum); font-weight: 600; }
+  .card .meta-tail .ha { color: var(--info); font-weight: 600; }
+  .card.zeroTask { opacity: 0.7; }
+  .card.zeroTask .status { color: var(--fg-mute); }
+  .card .kv { display: flex; justify-content: space-between; align-items: baseline; }
+  .card .kv .k { color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.08em; font-size: 9.5px; }
+  .card .kv .v { color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .card .kv .v.ok { color: var(--acid); }
+  .card .kv .v.warn { color: var(--warn); }
+  .card .kv .v.crit { color: var(--crit); }
+  .card .kv .v.info { color: var(--info); }
+
+  /* ── Log panel ──────────────────────────────────────────────────── */
+  .logs {
+    position: sticky; top: 84px;
+    max-height: calc(100vh - 104px);
+    display: flex; flex-direction: column;
+  }
+  .logs .panel-body {
+    flex: 1; overflow-y: auto;
+    padding: 6px 2px;
+  }
+  .log-line {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    animation: logIn 360ms var(--ease-out);
+    position: relative;
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .log-line::before {
+    content: ""; width: 4px; height: 4px; border-radius: 50%;
+    background: var(--fg-dim); margin-top: 6px; flex-shrink: 0;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .log-line.ok::before   { background: var(--acid); }
+  .log-line.err::before  { background: var(--crit); animation: blinkDot 1.2s ease-in-out infinite; }
+  .log-line.info::before { background: var(--info); }
+  .log-line.warn::before { background: var(--warn); }
+  @keyframes blinkDot { 50% { opacity: 0.2; } }
+  @keyframes logIn {
+    from { opacity: 0; transform: translateX(8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .log-line .t { color: var(--fg-dim); }
+  .log-line .a { color: var(--amber); font-weight: 600; }
+  .log-line.ok .m { color: var(--acid); }
+  .log-line.err .m { color: var(--crit); }
+  .log-line.info .m { color: var(--info); }
+  .log-line.warn .m { color: var(--warn); }
+  .log-line .m { color: var(--fg); flex: 1; min-width: 0; word-break: break-word; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+  /* ── Loading splash ─────────────────────────────────────────────── */
+  #splash {
+    position: fixed; inset: 0; z-index: 50;
+    background: var(--ink-0);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 22px;
+    animation: splashOut 800ms var(--ease-out) 700ms forwards;
+  }
+  @keyframes splashOut { to { opacity: 0; visibility: hidden; } }
+  #splash .logo {
+    width: 80px; height: 80px; border-radius: 22px;
+    background: conic-gradient(from 0deg, var(--amber), #ff6a00, var(--acid), var(--info), var(--plum), var(--amber));
+    animation: spin 3s linear infinite, logoBreath 2.4s ease-in-out infinite alternate;
+    box-shadow: 0 0 100px -20px var(--amber);
+    position: relative;
+  }
+  #splash .logo::after {
+    content: ""; position: absolute; inset: 8px; border-radius: 16px;
+    background: var(--ink-0);
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes logoBreath {
+    0%   { box-shadow: 0 0 80px -20px var(--amber); }
+    100% { box-shadow: 0 0 100px -20px var(--acid); }
+  }
+  #splash .txt {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--fg-mute); font-size: 12px;
+    letter-spacing: 0.28em; text-transform: uppercase;
+  }
+  #splash .txt::after {
+    content: ""; display: inline-block; width: 6px; height: 13px;
+    background: var(--amber); margin-left: 6px; vertical-align: middle;
+    animation: caret 0.9s step-end infinite;
+  }
+  @keyframes caret { 50% { opacity: 0; } }
+
+  /* ripple click effect */
+  .ripple {
+    position: absolute; border-radius: 50%;
+    background: rgba(255,255,255,0.22);
+    transform: scale(0); animation: rippleOut 600ms var(--ease-out);
+    pointer-events: none;
+  }
+  @keyframes rippleOut {
+    to { transform: scale(4); opacity: 0; }
+  }
+
+  /* ── Upstream API degradation banner ─────────────────────────── */
+  .api-banner {
+    display: none;
+    position: sticky; top: 72px; z-index: 19;
+    margin: 8px 28px 0;
+    padding: 12px 18px;
+    border-radius: var(--radius-m);
+    background: linear-gradient(90deg, rgba(255,138,61,0.16), rgba(255,69,96,0.12));
+    border: 1px solid rgba(255,138,61,0.45);
+    box-shadow: 0 0 30px -10px var(--warn);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px; letter-spacing: 0.08em;
+    color: var(--warn);
+    display: flex; align-items: center; gap: 10px;
+    animation: bannerPulse 3s ease-in-out infinite;
+  }
+  .api-banner.visible { display: flex; }
+  .api-banner .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--warn); box-shadow: 0 0 12px var(--warn);
+    animation: pulse 1.2s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .api-banner .lbl { color: var(--warn); font-weight: 700; text-transform: uppercase; }
+  .api-banner .msg { color: var(--fg); flex: 1; letter-spacing: 0; text-transform: none; }
+  .api-banner .stats { color: var(--fg-mute); font-size: 10.5px; }
+  @keyframes bannerPulse {
+    0%,100% { border-color: rgba(255,138,61,0.45); }
+    50%     { border-color: rgba(255,138,61,0.85); }
+  }
+
+  /* ────────────────────────────────────────────────────────────────
+     ░░  NEXT-LEVEL VISUAL LAYER (v2)                             ░░
+     ░░  cursor spotlight · holographic prism · ambient orbs ·    ░░
+     ░░  magnetic buttons · live marquee · confetti · glints      ░░
+     ──────────────────────────────────────────────────────────── */
+
+  /* ── Cursor spotlight (soft radial light follows pointer) ─── */
+  .cursor-glow {
+    position: fixed;
+    top: 0; left: 0;
+    width: 560px; height: 560px;
+    pointer-events: none;
+    transform: translate3d(-50%, -50%, 0);
+    background: radial-gradient(circle,
+      rgba(255,176,32,0.11) 0%,
+      rgba(125,255,84,0.05) 28%,
+      rgba(108,180,255,0.03) 55%,
+      transparent 72%);
+    mix-blend-mode: screen;
+    z-index: 3;
+    opacity: 0;
+    transition: opacity 500ms ease;
+    filter: blur(4px);
+    will-change: transform;
+  }
+  .cursor-glow.on { opacity: 1; }
+
+  /* ── Floating ambient orbs (foreground bokeh) ─────────────── */
+  .floating-orbs {
+    position: fixed; inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .floating-orbs .fo {
+    position: absolute; border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.28;
+    will-change: transform;
+    animation: orbDrift 34s ease-in-out infinite alternate;
+  }
+  .floating-orbs .fo-1 {
+    width: 420px; height: 420px;
+    background: radial-gradient(circle, var(--amber), transparent 62%);
+    top: -120px; left: -80px;
+  }
+  .floating-orbs .fo-2 {
+    width: 520px; height: 520px;
+    background: radial-gradient(circle, var(--acid), transparent 62%);
+    top: 32%; right: -160px;
+    animation-delay: -12s;
+  }
+  .floating-orbs .fo-3 {
+    width: 340px; height: 340px;
+    background: radial-gradient(circle, var(--plum), transparent 62%);
+    bottom: -60px; left: 30%;
+    animation-delay: -18s;
+  }
+  .floating-orbs .fo-4 {
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, var(--info), transparent 62%);
+    top: 20%; left: 42%;
+    animation-delay: -6s;
+    opacity: 0.18;
+  }
+  @keyframes orbDrift {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    50%  { transform: translate3d(60px, -40px, 0) scale(1.18); }
+    100% { transform: translate3d(-40px, 60px, 0) scale(0.9); }
+  }
+
+  /* ── Live marquee ticker (always rolling, beneath topbar) ─ */
+  .ticker {
+    position: sticky;
+    top: 76px;
+    z-index: 18;
+    overflow: hidden;
+    padding: 10px 0;
+    background:
+      linear-gradient(90deg,
+        rgba(255,176,32,0.07) 0%,
+        rgba(125,255,84,0.07) 25%,
+        rgba(108,180,255,0.07) 55%,
+        rgba(181,123,255,0.07) 80%,
+        rgba(79,227,217,0.07) 100%);
+    background-size: 300% 100%;
+    animation: tickerBgShift 22s linear infinite;
+    border-bottom: 1px solid var(--line);
+    border-top: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--fg-mute);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  @keyframes tickerBgShift {
+    0%   { background-position: 0 0; }
+    100% { background-position: 300% 0; }
+  }
+  .ticker::before,
+  .ticker::after {
+    content: "";
+    position: absolute; top: 0; bottom: 0; width: 100px;
+    z-index: 3; pointer-events: none;
+  }
+  .ticker::before { left: 0;  background: linear-gradient(90deg, var(--ink-0), transparent); }
+  .ticker::after  { right: 0; background: linear-gradient(270deg, var(--ink-0), transparent); }
+  .ticker-track {
+    display: inline-flex;
+    gap: 44px;
+    white-space: nowrap;
+    animation: tickerRoll 80s linear infinite;
+    padding-left: 44px;
+    will-change: transform;
+  }
+  .ticker:hover .ticker-track { animation-play-state: paused; }
+  .ticker-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .ticker-item .mk {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 8px currentColor;
+    flex-shrink: 0;
+  }
+  .ticker-item.acid .mk  { background: var(--acid);  color: var(--acid);  }
+  .ticker-item.info .mk  { background: var(--info);  color: var(--info);  }
+  .ticker-item.plum .mk  { background: var(--plum);  color: var(--plum);  }
+  .ticker-item.amber .mk { background: var(--amber); color: var(--amber); }
+  .ticker-item.cyan .mk  { background: var(--cyan);  color: var(--cyan);  }
+  .ticker-item.warn .mk  { background: var(--warn);  color: var(--warn);  }
+  .ticker-item b {
+    color: var(--fg);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .ticker-item.acid b  { color: var(--acid);  text-shadow: 0 0 12px rgba(125,255,84,0.4); }
+  .ticker-item.amber b { color: var(--amber); text-shadow: 0 0 12px rgba(255,176,32,0.4); }
+  .ticker-item.info b  { color: var(--info);  text-shadow: 0 0 12px rgba(108,180,255,0.4); }
+  .ticker-item.plum b  { color: var(--plum);  text-shadow: 0 0 12px rgba(181,123,255,0.4); }
+  .ticker-item.cyan b  { color: var(--cyan);  text-shadow: 0 0 12px rgba(79,227,217,0.4); }
+  .ticker-item.warn b  { color: var(--warn); }
+  @keyframes tickerRoll {
+    0%   { transform: translate3d(0, 0, 0); }
+    100% { transform: translate3d(-50%, 0, 0); }
+  }
+
+  /* ── Card spotlight (cursor-follow highlight) ────────────── */
+  .kpi, .ring-card, .batch-panel, .panel, .chip-stat, .card {
+    --mx: 50%;
+    --my: 50%;
+  }
+  .kpi .spotlight,
+  .ring-card .spotlight,
+  .batch-panel .spotlight,
+  .panel .spotlight,
+  .chip-stat .spotlight,
+  .card .spotlight {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: radial-gradient(circle at var(--mx) var(--my),
+      rgba(255,255,255,0.09) 0%,
+      rgba(255,255,255,0.02) 22%,
+      transparent 46%);
+    opacity: 0;
+    transition: opacity 260ms ease;
+    z-index: 0;
+    mix-blend-mode: screen;
+  }
+  .kpi:hover .spotlight,
+  .ring-card:hover .spotlight,
+  .batch-panel:hover .spotlight,
+  .panel:hover .spotlight,
+  .chip-stat:hover .spotlight,
+  .card:hover .spotlight { opacity: 1; }
+
+  /* ── Card hover diagonal glint ───────────────────────────── */
+  .card .glint,
+  .kpi .glint {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    overflow: hidden;
+    z-index: 1;
+  }
+  .card .glint::before,
+  .kpi .glint::before {
+    content: "";
+    position: absolute;
+    top: -50%; left: -75%;
+    width: 50%; height: 200%;
+    background: linear-gradient(110deg,
+      transparent 30%,
+      rgba(255,255,255,0.12) 48%,
+      rgba(255,255,255,0.22) 50%,
+      rgba(255,255,255,0.12) 52%,
+      transparent 70%);
+    transform: translateX(-120%) skewX(-18deg);
+    transition: none;
+    opacity: 0;
+  }
+  .card:hover .glint::before,
+  .kpi:hover .glint::before {
+    animation: glintSlide 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes glintSlide {
+    0%   { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+    20%  { opacity: 1; }
+    100% { transform: translateX(320%) skewX(-18deg); opacity: 0; }
+  }
+
+  /* ── Holographic prism ribbon under topbar ───────────────── */
+  .prism-ribbon {
+    position: relative;
+    height: 2px;
+    background:
+      linear-gradient(90deg,
+        transparent 0%,
+        rgba(255,176,32,0.95) 15%,
+        rgba(125,255,84,0.95) 32%,
+        rgba(79,227,217,0.95) 50%,
+        rgba(108,180,255,0.95) 68%,
+        rgba(181,123,255,0.95) 85%,
+        transparent 100%);
+    background-size: 300% 100%;
+    opacity: 0.85;
+    filter: blur(0.3px) drop-shadow(0 0 10px rgba(125,255,84,0.35));
+    animation: prismShift 10s linear infinite;
+    z-index: 19;
+  }
+  @keyframes prismShift {
+    0%   { background-position: 0 0; }
+    100% { background-position: 300% 0; }
+  }
+  .prism-ribbon::after {
+    content: "";
+    position: absolute;
+    inset: -1px 0;
+    background: inherit;
+    filter: blur(6px);
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  /* ── Magnetic button micro-tweak ─────────────────────────── */
+  .btn {
+    transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1),
+                border-color var(--dur-fast) var(--ease-out),
+                color var(--dur-fast) var(--ease-out),
+                background var(--dur-fast) var(--ease-out),
+                box-shadow var(--dur-fast) var(--ease-out);
+  }
+
+  /* ── Confetti canvas (celebrations) ──────────────────────── */
+  #confetti {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 25;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  /* ── Scroll reveal base (stagger on enter) ──────────────── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(26px) scale(0.985);
+    filter: blur(6px);
+    transition:
+      opacity 780ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 780ms cubic-bezier(0.16, 1, 0.3, 1),
+      filter 600ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .reveal.in {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+
+  /* ── Scramble/glitch text pulse (number updates) ─────────── */
+  @keyframes glitchFlash {
+    0%   { text-shadow: none; filter: none; }
+    25%  { text-shadow: 2px 0 var(--acid), -2px 0 var(--info); filter: hue-rotate(15deg) saturate(1.3); }
+    55%  { text-shadow: -2px 0 var(--amber), 2px 0 var(--plum); filter: hue-rotate(-15deg) saturate(1.3); }
+    100% { text-shadow: none; filter: none; }
+  }
+  .num.scramble {
+    animation: glitchFlash 540ms ease-out;
+  }
+
+  /* ── Enhanced KPI ring glow on hover ──────────────────────── */
+  .kpi {
+    transition:
+      transform var(--dur-med) var(--ease-out),
+      border-color var(--dur-med) var(--ease-out),
+      box-shadow var(--dur-med) var(--ease-out);
+  }
+  .kpi::before {
+    /* keep existing stripe */
+  }
+  .kpi:hover::before {
+    animation-duration: 2.2s;
+  }
+
+  /* ── Agent card: subtle gradient border on running ───────── */
+  .card.capped {
+    box-shadow:
+      0 0 0 1px rgba(79,227,217,0.45) inset,
+      0 18px 40px -24px rgba(79,227,217,0.55),
+      0 0 30px -18px var(--cyan);
+  }
+  .card.capped::after {
+    /* override the bar and put capped star instead */
+    content: "◆";
+    position: absolute;
+    top: 6px; right: 10px;
+    color: var(--cyan);
+    font-size: 10px;
+    text-shadow: 0 0 8px var(--cyan);
+    animation: spinSlow 6s linear infinite;
+    height: auto; background: none; width: auto;
+  }
+  @keyframes spinSlow { to { transform: rotate(360deg); } }
+
+  /* ── Chip hover glow ─────────────────────────────────────── */
+  .chip {
+    transition:
+      transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+      border-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      background var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
+  }
+
+  /* ── Topbar premium glass ────────────────────────────────── */
+  .topbar {
+    background:
+      linear-gradient(180deg,
+        rgba(8,10,18,0.92) 0%,
+        rgba(8,10,18,0.7) 60%,
+        rgba(8,10,18,0.45) 100%);
+    backdrop-filter: blur(22px) saturate(160%);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+  }
+  .topbar::before {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(600px 80px at 20% 0%, rgba(255,176,32,0.12), transparent),
+      radial-gradient(600px 80px at 80% 0%, rgba(125,255,84,0.12), transparent);
+    pointer-events: none;
+  }
+
+  /* ── Brand hover magnetism ───────────────────────────────── */
+  .brand { cursor: pointer; transition: transform 260ms var(--ease-spring); }
+  .brand:hover { transform: scale(1.02); }
+  .brand:hover .mark { animation-duration: 4s; }
+
+  /* ── Splash: enhanced cinematic reveal ───────────────────── */
+  #splash {
+    background:
+      radial-gradient(ellipse at center,
+        rgba(17,20,30,1) 0%,
+        var(--ink-0) 70%);
+  }
+  #splash .logo {
+    animation:
+      spin 3s linear infinite,
+      logoBreath 2.4s ease-in-out infinite alternate,
+      logoArrive 900ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes logoArrive {
+    from { transform: scale(0.3) rotate(-180deg); opacity: 0; filter: blur(12px); }
+    to   { transform: scale(1) rotate(0deg);     opacity: 1; filter: blur(0); }
+  }
+  #splash .txt {
+    animation: txtArrive 900ms cubic-bezier(0.16, 1, 0.3, 1) 200ms backwards;
+  }
+  @keyframes txtArrive {
+    from { opacity: 0; letter-spacing: 0.6em; transform: translateY(10px); }
+    to   { opacity: 1; letter-spacing: 0.28em; transform: translateY(0); }
+  }
+
+  /* ── KPI value: subtle breathing accent when idle ─────────── */
+  .kpi .kpi-value .num {
+    transition: transform 180ms var(--ease-spring), color 220ms ease;
+  }
+
+  /* ── Accessibility: reduced motion fine-tuning ──────────── */
+  @media (prefers-reduced-motion: reduce) {
+    .cursor-glow, .floating-orbs, .ticker { display: none !important; }
+  }
+
+  /* ── Mobile tweaks for ticker ──────────────────────────── */
+  @media (max-width: 900px) {
+    .ticker { top: 72px; padding: 8px 0; font-size: 10px; }
+    .ticker-item b { font-size: 11px; }
+    .floating-orbs .fo { opacity: 0.18; }
+  }
+
+  /* reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="bg-stage">
+    <div class="bg-aurora"></div>
+    <div class="bg-mesh"></div>
+    <div class="bg-grid"></div>
+    <div class="bg-noise"></div>
+    <canvas id="particles"></canvas>
+    <div class="bg-scanline"></div>
+  </div>
+
+  <!-- ░░ foreground ambient luminosity ░░ -->
+  <div class="floating-orbs" aria-hidden="true">
+    <div class="fo fo-1"></div>
+    <div class="fo fo-2"></div>
+    <div class="fo fo-3"></div>
+    <div class="fo fo-4"></div>
+  </div>
+
+  <!-- ░░ soft cursor spotlight ░░ -->
+  <div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
+
+  <!-- ░░ celebration confetti ░░ -->
+  <canvas id="confetti" aria-hidden="true"></canvas>
+
+  <div id="splash">
+    <div class="logo"></div>
+    <div class="txt">Booting Worknet Console</div>
+  </div>
+
+  <div class="app">
+    <!-- ── Top bar ──────────────────────────────────────────── -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark"></div>
+        <div class="brand-text">
+          <div class="name">WORKNET · OPS</div>
+          <div class="sub" id="brandSub">mining console</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="chip live" id="chipLive"><span class="dot"></span><span id="liveTxt">LIVE</span></span>
+        <span class="chip" id="chipEpoch"><span class="dot"></span><span id="epochTxt">Epoch —</span></span>
+        <span class="chip" id="chipClock"><span class="dot"></span><span id="clockTxt">00:00:00</span></span>
+        <button class="btn" id="btnPause"><span class="dot"></span><span>Pause</span></button>
+        <button class="btn primary" id="btnRefresh"><span class="dot"></span><span>Refresh</span></button>
+      </div>
+    </header>
+
+    <!-- ░░ prismatic accent ribbon ░░ -->
+    <div class="prism-ribbon" aria-hidden="true"></div>
+
+    <!-- ░░ live rolling metrics ticker ░░ -->
+    <div class="ticker" id="ticker" aria-hidden="true">
+      <div class="ticker-track" id="tickerTrack">
+        <!-- populated dynamically from stats -->
+      </div>
+    </div>
+
+    <!-- ── Upstream API degradation banner ─────────────────── -->
+    <div class="api-banner" id="apiBanner">
+      <span class="dot"></span>
+      <span class="lbl">Upstream degraded</span>
+      <span class="msg" id="apiBannerMsg">minework.net API returning empty profiles — dashboard stats frozen. Workers still mining via WebSocket.</span>
+      <span class="stats" id="apiBannerStats">—</span>
+    </div>
+
+    <!-- ── Hero KPI ─────────────────────────────────────────── -->
+    <section class="hero">
+      <article class="kpi amber" data-glyph="◆ FLEET">
+        <svg class="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 4.5v11L12 22l-9-4.5v-11L12 2z"/><path d="M12 22V11"/><path d="M21 6.5L12 11 3 6.5"/></svg>
+        <div class="kpi-label">Active workers</div>
+        <div class="kpi-value"><span class="num" id="kRun">0</span><span class="kpi-unit">/ <span id="kTot">0</span></span></div>
+        <div class="kpi-sub">
+          <span>health</span>
+          <span class="delta" id="kHealth">—</span>
+        </div>
+        <div class="orb"></div>
+        <div class="flash"></div>
+        <canvas class="spark" id="sparkRun"></canvas>
+      </article>
+      <article class="kpi acid" data-glyph="◆ SUBMIT">
+        <svg class="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        <div class="kpi-label">Submissions</div>
+        <div class="kpi-value"><span class="num" id="kSub">0</span></div>
+        <div class="kpi-sub">
+          <span>current epoch</span>
+          <span class="delta" id="kEpochSub">+0</span>
+        </div>
+        <div class="orb"></div>
+        <div class="flash"></div>
+        <canvas class="spark" id="sparkSub"></canvas>
+      </article>
+      <article class="kpi info" data-glyph="◆ SCORE">
+        <svg class="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7l3-7z"/></svg>
+        <div class="kpi-label">Avg score</div>
+        <div class="kpi-value"><span class="num" id="kScore">0</span><span class="kpi-unit" id="kScoreMax">/ 100</span></div>
+        <div class="kpi-sub">
+          <span>sampled</span>
+          <span class="delta" id="kSampled">0</span>
+        </div>
+        <div class="orb"></div>
+        <div class="flash"></div>
+        <canvas class="spark" id="sparkScore"></canvas>
+      </article>
+      <article class="kpi plum" data-glyph="◆ REWARDS">
+        <svg class="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+        <div class="kpi-label">Est. epoch rewards <span id="kRewSrc" style="color:var(--fg-dim);font-size:9px;letter-spacing:.06em;">· projected</span></div>
+        <div class="kpi-value"><span class="num" id="kRew">0</span><span class="kpi-unit">AWP</span></div>
+        <div class="kpi-sub">
+          <span>lifetime</span>
+          <span class="delta" id="kLifeRew">0</span>
+        </div>
+        <div class="orb"></div>
+        <div class="flash"></div>
+        <canvas class="spark" id="sparkRew"></canvas>
+      </article>
+    </section>
+
+    <!-- ── Dense stat strip (all secondary metrics) ─────────── -->
+    <section class="strip">
+      <div class="chip-stat acid"><div class="k">Running</div><div class="v ok"><span id="sRunning">0</span><span class="u">/ <span id="sTotal">0</span></span></div><div class="bar"></div></div>
+      <div class="chip-stat warn"><div class="k">Stopped</div><div class="v warn" id="sStopped">0</div><div class="bar"></div></div>
+      <div class="chip-stat amber"><div class="k">Tasks Now</div><div class="v amber" id="sTasksNow">0</div><div class="bar"></div></div>
+      <div class="chip-stat info"><div class="k">Task + Pending</div><div class="v info" id="sLoad">0</div><div class="bar"></div></div>
+      <div class="chip-stat warn"><div class="k">Pending</div><div class="v warn" id="sPending">0</div><div class="bar"></div></div>
+      <div class="chip-stat acid"><div class="k">Sampled Now</div><div class="v ok" id="sSampled">0</div><div class="bar"></div></div>
+      <div class="chip-stat crit"><div class="k">Errors</div><div class="v crit" id="sErrors">0</div><div class="bar"></div></div>
+      <div class="chip-stat plum"><div class="k">Throughput</div><div class="v"><span id="sThroughput">0</span><span class="u">/min</span></div><div class="bar"></div></div>
+    </section>
+
+    <!-- ── Score-bucket strip (wallets by current avg score) ─────── -->
+    <section class="strip">
+      <div class="chip-stat acid"><div class="k">Wallets · avg &gt; 60</div><div class="v ok"><span id="sAvgAbove60">0</span><span class="u"><span id="sAvgAbove60Pct">0%</span></span></div><div class="bar"></div></div>
+      <div class="chip-stat warn"><div class="k">Wallets · avg &lt; 60</div><div class="v warn"><span id="sAvgBelow60">0</span><span class="u"><span id="sAvgBelow60Pct">0%</span></span></div><div class="bar"></div></div>
+      <div class="chip-stat info"><div class="k">Wallets · Avg Pending</div><div class="v info" id="sAvgUnsampled">0</div><div class="bar"></div></div>
+      <div class="chip-stat plum"><div class="k">Wallets · Zero Task</div><div class="v" id="sZeroTask">0</div><div class="bar"></div></div>
+      <div class="chip-stat amber"><div class="k">Tasks Lifetime</div><div class="v amber" id="sTasksLt">0</div><div class="bar"></div></div>
+      <div class="chip-stat info"><div class="k">Avg Score LT</div><div class="v info" id="sHistAvg">0.0</div><div class="bar"></div></div>
+      <div class="chip-stat acid"><div class="k">Hist Epochs</div><div class="v ok" id="sHistEpochs">0</div><div class="bar"></div></div>
+      <div class="chip-stat plum"><div class="k">Tracked</div><div class="v" id="sWalletsTracked">0</div><div class="bar"></div></div>
+    </section>
+
+    <!-- ── Ring gauge row: cap progression ─────────────────── -->
+    <section class="rings">
+      <div class="ring-card acid">
+        <div class="ring">
+          <svg viewBox="0 0 100 100">
+            <circle class="bg-track" cx="50" cy="50" r="42" fill="none" stroke-width="8"/>
+            <circle class="fg-arc" id="arcCapped" cx="50" cy="50" r="42" fill="none" stroke-width="8" stroke-dasharray="263.9" stroke-dashoffset="263.9"/>
+          </svg>
+          <div class="num"><span id="arcCappedPct">0</span>%<span class="lbl">capped</span></div>
+        </div>
+        <div class="info-col">
+          <div class="ttl">Wallets · Capped 100</div>
+          <div class="big"><span id="sWalletsCapped">0</span><span class="u">/ <span id="sWalletsCappedTotal">0</span></span></div>
+          <div class="sub">remaining to cap: <span id="sRemainingTasks">0</span></div>
+        </div>
+      </div>
+      <div class="ring-card amber">
+        <div class="ring">
+          <svg viewBox="0 0 100 100">
+            <circle class="bg-track" cx="50" cy="50" r="42" fill="none" stroke-width="8"/>
+            <circle class="fg-arc" id="arcHalf" cx="50" cy="50" r="42" fill="none" stroke-width="8" stroke-dasharray="263.9" stroke-dashoffset="263.9"/>
+          </svg>
+          <div class="num"><span id="arcHalfPct">0</span>%<span class="lbl">≥ 50</span></div>
+        </div>
+        <div class="info-col">
+          <div class="ttl">Wallets · ≥ 50 tasks</div>
+          <div class="big"><span id="sWalletsHalfCap">0</span><span class="u">of <span id="sWalletsHalfTotal">0</span></span></div>
+          <div class="sub">avg tasks/wallet: <span id="sAvgTasksPerWallet">0.0</span></div>
+        </div>
+      </div>
+      <div class="ring-card info">
+        <div class="ring">
+          <svg viewBox="0 0 100 100">
+            <circle class="bg-track" cx="50" cy="50" r="42" fill="none" stroke-width="8"/>
+            <circle class="fg-arc" id="arcActive" cx="50" cy="50" r="42" fill="none" stroke-width="8" stroke-dasharray="263.9" stroke-dashoffset="263.9"/>
+          </svg>
+          <div class="num"><span id="arcActivePct">0</span>%<span class="lbl">active</span></div>
+        </div>
+        <div class="info-col">
+          <div class="ttl">Wallets · Active (≥1)</div>
+          <div class="big"><span id="sWalletsActive">0</span><span class="u">of <span id="sWalletsActiveTotal">0</span></span></div>
+          <div class="sub">sampled / submit: <span id="sSampleRatio">0</span>%</div>
+        </div>
+      </div>
+      <div class="ring-card plum">
+        <div class="ring">
+          <svg viewBox="0 0 100 100">
+            <circle class="bg-track" cx="50" cy="50" r="42" fill="none" stroke-width="8"/>
+            <circle class="fg-arc" id="arcFill" cx="50" cy="50" r="42" fill="none" stroke-width="8" stroke-dasharray="263.9" stroke-dashoffset="263.9"/>
+          </svg>
+          <div class="num"><span id="arcFillPct">0</span>%<span class="lbl">epoch</span></div>
+        </div>
+        <div class="info-col">
+          <div class="ttl">Epoch fill rate</div>
+          <div class="big"><span id="sEpochFill">0</span><span class="u">% filled</span></div>
+          <div class="sub">hist epochs qualified: <span id="sHistEpochsQ">0</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Batch progression ────────────────────────────────── -->
+    <section class="batchbar">
+      <div class="batch-panel">
+        <div class="hdr">
+          <div class="title">Current batch</div>
+          <div class="range" id="bRange">—</div>
+          <div class="next">
+            <span>next</span>
+            <span class="arrow">→</span>
+            <span class="to" id="bNext">—</span>
+          </div>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="bProgress" style="width:0%"></div>
+          <div class="progress-ticks">
+            <span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span>
+            <span></span><span></span>
+          </div>
+        </div>
+        <div class="progress-meta">
+          <span class="kvi">capped <b class="ok" id="bCapped">0</b>/<b id="bTotal">0</b></span>
+          <span class="kvi">≥50 <b class="amber" id="bHalf">0</b></span>
+          <span class="kvi">active <b class="info" id="bActive">0</b></span>
+          <span class="kvi">zero <b class="warn" id="bZero">0</b></span>
+          <span class="kvi">tasks <b id="bTasks">0</b>/<b id="bMax">0</b></span>
+          <span class="kvi">fill <b class="ok" id="bFill">0</b>%</span>
+          <span class="kvi">avg <b class="info" id="bAvg">0</b></span>
+          <span class="kvi">auto <b id="bAuto">—</b></span>
+        </div>
+      </div>
+      <div class="batch-queue">
+        <div class="ttl">Batch queue · push 0-task → cap 100</div>
+        <div id="bQueue"></div>
+      </div>
+    </section>
+
+    <!-- ── Chart + meta ─────────────────────────────────────── -->
+    <section class="panel-row">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="title">Throughput · rolling window</div>
+          <div class="meta">
+            <div class="chart-legend">
+              <span style="color:var(--amber)"><span class="sw" style="background:var(--amber)"></span>Submissions</span>
+              <span style="color:var(--acid)"><span class="sw" style="background:var(--acid)"></span>Sampled</span>
+              <span style="color:var(--info)"><span class="sw" style="background:var(--info)"></span>Workers</span>
+            </div>
+          </div>
+        </div>
+        <div class="chart-host">
+          <canvas id="chart"></canvas>
+        </div>
+      </div>
+
+      <div class="panel meta-stack">
+        <div class="panel-head">
+          <div class="title">Epoch telemetry</div>
+          <div class="meta" id="metaStamp">—</div>
+        </div>
+        <div class="panel-body">
+          <div class="meta-row"><span class="k">Submit log</span><span class="v" id="mSubmitLog">—</span></div>
+          <div class="meta-row"><span class="k">Fleet epoch submits</span><span class="v acid" id="mEpochSub">—</span></div>
+          <div class="meta-row"><span class="k">Fleet sampled</span><span class="v acid" id="mEpochSampled">—</span></div>
+          <div class="meta-row"><span class="k">Active pool submits</span><span class="v info" id="mActiveEpochSub">—</span></div>
+          <div class="meta-row"><span class="k">Active pool sampled</span><span class="v info" id="mActiveEpochSampled">—</span></div>
+          <div class="meta-row"><span class="k">Previous epoch id</span><span class="v" id="mPrevEpochId">—</span></div>
+          <div class="meta-row"><span class="k">Previous capped 100</span><span class="v acid" id="mPrevCapped">—</span></div>
+          <div class="meta-row"><span class="k">Previous avg score</span><span class="v info" id="mPrevAvg">—</span></div>
+          <div class="meta-row"><span class="k">Previous epoch submits</span><span class="v" id="mPrevSub">—</span></div>
+          <div class="meta-row"><span class="k">Previous sampled</span><span class="v" id="mPrevSampled">—</span></div>
+          <div class="meta-row"><span class="k">Previous rewards</span><span class="v" id="mPrevRew">—</span></div>
+          <div class="meta-row"><span class="k">Epoch API rewards</span><span class="v amber" id="mEpochApiRew">—</span></div>
+          <div class="meta-row"><span class="k">Est. epoch rewards</span><span class="v amber" id="mEstRew">—</span></div>
+          <div class="meta-row"><span class="k">Lifetime rewards</span><span class="v amber" id="mLifeRew">—</span></div>
+          <div class="meta-row"><span class="k">Tasks lifetime</span><span class="v info" id="mTasksLt">—</span></div>
+          <div class="meta-row"><span class="k">Avg score (now)</span><span class="v info" id="mAvgNow">—</span></div>
+          <div class="meta-row"><span class="k">Avg score (lifetime)</span><span class="v info" id="mAvgLt">—</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Toolbar ──────────────────────────────────────────── -->
+    <div class="toolbar">
+      <div class="tabs" id="tabs" role="tablist">
+        <button class="tab active" data-view="agents" role="tab"><span>Agents</span><span class="count" id="tabAgentsCount">0</span></button>
+        <button class="tab" data-view="wallets" role="tab"><span>Wallets</span><span class="count" id="tabWalletsCount">0</span></button>
+      </div>
+      <label class="search">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.35-4.35"></path>
+        </svg>
+        <input id="search" placeholder="Search by worker ID, wallet, or address…" />
+      </label>
+      <select id="filter" class="select">
+        <option value="all">All · any state</option>
+        <option value="running">Running</option>
+        <option value="errored">Errored</option>
+        <option value="stopped">Stopped</option>
+        <option value="capped">Capped 100</option>
+        <option value="halfcap">≥ 50 tasks</option>
+        <option value="active">Active (≥1)</option>
+        <option value="zero">Zero task</option>
+        <option value="above60">Avg &gt; 60</option>
+        <option value="below60">Avg &lt; 60</option>
+      </select>
+      <select id="sort" class="select">
+        <option value="num">Sort · 1 → 1000</option>
+        <option value="numDesc">Sort · 1000 → 1</option>
+        <option value="tasks">Sort · Tasks</option>
+        <option value="score">Sort · Score</option>
+        <option value="reward">Sort · Reward</option>
+      </select>
+      <button class="btn" id="btnStartAll">Start all</button>
+      <button class="btn danger" id="btnStopAll">Stop all</button>
+    </div>
+
+    <!-- ── Main: grids + logs ─────────────────────────────── -->
+    <main class="main">
+      <div class="agents" id="agents"></div>
+      <div class="agents" id="wallets" style="display:none"></div>
+      <aside class="panel logs">
+        <div class="panel-head">
+          <div class="title">Live stream</div>
+          <div class="meta" id="logsMeta">—</div>
+        </div>
+        <div class="panel-body" id="logs"></div>
+      </aside>
+    </main>
+  </div>
+
+<script>
+(() => {
+  // ── State ─────────────────────────────────────────────────────────
+  const state = {
+    stats: null,
+    agents: [],
+    logs: [],
+    lastStats: null,
+    paused: false,
+    history: { run: [], sub: [], score: [], rew: [], sampled: [] },
+    wallets: [],
+    view: 'agents',
+    filter: 'all',
+    sort: 'num',
+    search: '',
+  };
+  const MAX_HIST = 80;
+  const EPOCH_CAP = 100;
+
+  // ── Helpers ───────────────────────────────────────────────────────
+  const $  = (s) => document.querySelector(s);
+  const $$ = (s) => document.querySelectorAll(s);
+
+  const fmt = new Intl.NumberFormat('en-US');
+  const fmtCompact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 });
+  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+
+  function shortAddr(a) {
+    if (!a) return '—';
+    return a.slice(0, 6) + '…' + a.slice(-4);
+  }
+
+  // ── Count-up (cubic ease) ─────────────────────────────────────────
+  function countUp(el, from, to, opts = {}) {
+    if (!el) return;
+    const dur = opts.dur ?? 720;
+    const start = performance.now();
+    const decimals = opts.decimals ?? 0;
+    const suffix = opts.suffix ?? '';
+    const format = opts.format ?? ((n) => n.toLocaleString('en-US', {
+      maximumFractionDigits: decimals,
+      minimumFractionDigits: decimals,
+    }));
+    from = Number(from) || 0;
+    to = Number(to) || 0;
+    if (from === to) { el.textContent = format(to) + suffix; return; }
+
+    function tick(t) {
+      const p = clamp((t - start) / dur, 0, 1);
+      const e = 1 - Math.pow(1 - p, 3);
+      const v = from + (to - from) * e;
+      el.textContent = format(v) + suffix;
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function bumpKpi(card) {
+    if (!card) return;
+    card.classList.remove('bump');
+    void card.offsetWidth;
+    card.classList.add('bump');
+  }
+
+  // ── Particle background ───────────────────────────────────────────
+  const particleCanvas = document.getElementById('particles');
+  const pctx = particleCanvas.getContext('2d');
+  let particles = [];
+  const PARTICLE_COUNT = window.innerWidth < 900 ? 40 : 90;
+  function initParticles() {
+    const w = window.innerWidth, h = window.innerHeight;
+    particleCanvas.width = w * (window.devicePixelRatio || 1);
+    particleCanvas.height = h * (window.devicePixelRatio || 1);
+    particleCanvas.style.width = w + 'px';
+    particleCanvas.style.height = h + 'px';
+    pctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
+    particles = [];
+    const palette = ['255,176,32', '125,255,84', '108,180,255', '181,123,255'];
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      particles.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.25,
+        vy: (Math.random() - 0.5) * 0.25,
+        r: Math.random() * 1.5 + 0.4,
+        color: palette[Math.floor(Math.random() * palette.length)],
+        a: Math.random() * 0.6 + 0.2,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+  function tickParticles() {
+    const w = window.innerWidth, h = window.innerHeight;
+    pctx.clearRect(0, 0, w, h);
+    const now = performance.now() / 1000;
+    for (const p of particles) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < -20) p.x = w + 20;
+      if (p.x > w + 20) p.x = -20;
+      if (p.y < -20) p.y = h + 20;
+      if (p.y > h + 20) p.y = -20;
+      const pulse = 0.5 + 0.5 * Math.sin(now * 1.2 + p.phase);
+      const a = p.a * (0.5 + pulse * 0.5);
+      pctx.fillStyle = `rgba(${p.color},${a})`;
+      pctx.beginPath();
+      pctx.arc(p.x, p.y, p.r * (0.8 + pulse * 0.6), 0, Math.PI * 2);
+      pctx.fill();
+    }
+    // constellations
+    pctx.lineWidth = 0.4;
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const a = particles[i], b = particles[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < 130) {
+          const alpha = (1 - d / 130) * 0.18;
+          pctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+          pctx.beginPath();
+          pctx.moveTo(a.x, a.y); pctx.lineTo(b.x, b.y);
+          pctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(tickParticles);
+  }
+  initParticles();
+  tickParticles();
+  window.addEventListener('resize', initParticles);
+
+  // ── 3D tilt on hover (pointer) ────────────────────────────────────
+  function attachTilt(selector, maxDeg = 6) {
+    document.querySelectorAll(selector).forEach(el => {
+      if (el.dataset.tilt) return;
+      el.dataset.tilt = '1';
+      el.addEventListener('pointermove', (ev) => {
+        const r = el.getBoundingClientRect();
+        const x = (ev.clientX - r.left) / r.width - 0.5;
+        const y = (ev.clientY - r.top) / r.height - 0.5;
+        el.style.transform = `perspective(900px) rotateX(${(-y * maxDeg).toFixed(2)}deg) rotateY(${(x * maxDeg).toFixed(2)}deg) translateZ(4px)`;
+      });
+      el.addEventListener('pointerleave', () => {
+        el.style.transform = '';
+      });
+    });
+  }
+
+  // ── Ripple on buttons ─────────────────────────────────────────────
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.btn');
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
+    const d = Math.max(r.width, r.height);
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple';
+    ripple.style.width = ripple.style.height = d + 'px';
+    ripple.style.left = (ev.clientX - r.left - d / 2) + 'px';
+    ripple.style.top  = (ev.clientY - r.top - d / 2) + 'px';
+    btn.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 650);
+  });
+
+  // ── Polling ───────────────────────────────────────────────────────
+  let pollTimer = null;
+  async function poll() {
+    if (state.paused) return schedule();
+    try {
+      const [stats, agents, logs, walletStats] = await Promise.all([
+        fetch('/api/stats', { cache: 'no-store' }).then(r => r.json()).catch(() => null),
+        fetch('/api/agents', { cache: 'no-store' }).then(r => r.json()).catch(() => []),
+        fetch('/api/logs?limit=40', { cache: 'no-store' }).then(r => r.json()).catch(() => []),
+        fetch('/api/wallet-stats', { cache: 'no-store' }).then(r => r.json()).catch(() => ({})),
+      ]);
+      // Normalize wallet-stats dict -> array sorted by num ascending
+      if (walletStats && typeof walletStats === 'object' && !Array.isArray(walletStats)) {
+        state.wallets = Object.values(walletStats).map(w => ({
+          num: parseInt(w.num, 10) || 0,
+          address: w.address || '',
+          tasks: Number(w.tasks || 0),
+          sampled: Number(w.sampled || 0),
+          pending: Number(w.pending || 0),
+          avgScore: Number(w.avgScore || 0),
+          histAvg: Number(w.histAvgScore || 0),
+          histTasks: Number(w.histTasks || 0),
+          epochSubmissions: Number(w.epochSubmissions || 0),
+          confirmed: Number(w.confirmedSubmissions || 0),
+          rejected: Number(w.rejectedSubmissions || 0),
+          todayAvg: Number(w.todayAvg || 0),
+          estReward: Number(w.estEpochReward || w.localEstEpochReward || 0),
+          totalRewards: Number(w.totalRewards || 0),
+          totalEpochs: Number(w.totalEpochs || 0),
+          credit: Number(w.credit || 0),
+          online: w.online === true || w.online === 'true' || w.online === 1,
+          currentEpochId: w.currentEpochId || '',
+        })).sort((a, b) => a.num - b.num);
+      }
+      if (stats) update(stats, agents, logs);
+    } catch (e) {
+      console.error('poll error', e);
+    }
+    schedule();
+  }
+  function schedule() {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(poll, 2500);
+  }
+
+  // ── Update pipeline ───────────────────────────────────────────────
+  function update(stats, agents, logs) {
+    const prev = state.lastStats;
+
+    // ── Epoch rollover detection + chart-history reset ────────────────
+    if (stats?.currentEpochId && state.lastEpochId && state.lastEpochId !== stats.currentEpochId) {
+      // New epoch: wipe chart history so trend lines start fresh
+      state.history = { run: [], sub: [], score: [], rew: [], sampled: [] };
+      console.log(`[epoch] rolled over ${state.lastEpochId} -> ${stats.currentEpochId}, chart reset`);
+    }
+    state.lastEpochId = stats?.currentEpochId || state.lastEpochId;
+
+    state.lastStats = state.stats;
+    state.stats = stats;
+    state.agents = Array.isArray(agents) ? agents : [];
+    state.logs = Array.isArray(logs) ? logs : [];
+
+    updateHero(stats, prev);
+    updateHistory(stats);
+    drawSparks();
+    drawChart();
+    updateMeta(stats);
+    renderActiveView();
+    renderLogs(logs);
+
+    $('#chipLive').classList.toggle('live', !state.paused);
+    $('#liveTxt').textContent = state.paused ? 'PAUSED' : 'LIVE';
+
+    // Activate tilt after first render
+    attachTilt('.kpi');
+    attachTilt('.ring-card', 4);
+  }
+
+  function diff(curr, prev, key) {
+    if (!prev) return null;
+    return (curr[key] ?? 0) - (prev[key] ?? 0);
+  }
+
+  function updateHero(s, prev) {
+    const prevTotRun = prev?.running ?? Number($('#kRun').textContent.replace(/,/g,'')) ?? 0;
+    const prevSub = Number(($('#kSub').textContent || '0').replace(/,/g,''));
+    const prevScore = Number(($('#kScore').textContent || '0').replace(/,/g,''));
+    const prevRew = Number(($('#kRew').textContent || '0').replace(/,/g,''));
+
+    countUp($('#kRun'), prevTotRun, s.running || 0);
+    $('#kTot').textContent = fmt.format(s.total || 0);
+
+    const subNow = s.totalSubmissions ?? 0;
+    countUp($('#kSub'), prevSub, subNow, { format: n => fmt.format(Math.round(n)) });
+
+    const score = parseFloat(s.avgScore) || 0;
+    countUp($('#kScore'), prevScore, score, { decimals: 1 });
+
+    const rew = s.totalCurrentEstimatedEpochRewards ?? s.totalEstimatedEpochRewards ?? 0;
+    countUp($('#kRew'), prevRew, rew, {
+      format: n => n >= 10000 ? fmtCompact.format(n) : fmt.format(Math.round(n))
+    });
+
+    const health = s.total ? Math.round((s.running / s.total) * 100) : 0;
+    $('#kHealth').textContent = health + '%';
+    $('#kHealth').classList.toggle('down', health < 85);
+
+    const epochDelta = diff(s, prev, 'totalCurrentEpochSubmissions') ?? 0;
+    $('#kEpochSub').textContent = (epochDelta >= 0 ? '+' : '') + fmt.format(epochDelta);
+    $('#kEpochSub').classList.toggle('down', epochDelta < 0);
+
+    $('#kSampled').textContent = fmt.format(s.totalCurrentEpochSampled ?? s.totalSampled ?? 0);
+
+    const life = s.totalRewardsLifetime ?? 0;
+    $('#kLifeRew').textContent = life >= 10000 ? fmtCompact.format(life) : fmt.format(Math.round(life));
+
+    // ── Upstream API health banner ─────────────────────────────────
+    const ah = s.apiHealth;
+    const banner = $('#apiBanner');
+    if (banner && ah) {
+      if (ah.upstreamDegraded) {
+        banner.classList.add('visible');
+        $('#apiBannerStats').textContent =
+          `${ah.upstreamNull} null / ${ah.upstreamOk + ah.upstreamNull} fetched · ${ah.upstreamOkRate}% OK`;
+      } else {
+        banner.classList.remove('visible');
+      }
+    }
+
+    // Reward source reliability label
+    const rsb = s.rewardSourceBreakdown;
+    if (rsb) {
+      const totalScored = rsb.apiCurrent + rsb.walletRate + rsb.fleetRate;
+      const parts = [];
+      if (rsb.apiCurrent > 0) parts.push(`${rsb.apiCurrent} confirmed`);
+      if (rsb.walletRate > 0) parts.push(`${rsb.walletRate} self-history`);
+      if (rsb.fleetRate > 0)  parts.push(`${rsb.fleetRate} fleet-rate`);
+      if (rsb.stale > 0)      parts.push(`${rsb.stale} pending`);
+      const lbl = $('#kRewSrc');
+      if (lbl) lbl.textContent = '· ' + (parts.length ? parts.join(' · ') : 'projected');
+    }
+
+    if (prev) {
+      const cards = document.querySelectorAll('.kpi');
+      if ((s.running ?? 0) !== (prev.running ?? 0)) bumpKpi(cards[0]);
+      if ((s.totalSubmissions ?? 0) !== (prev.totalSubmissions ?? 0)) bumpKpi(cards[1]);
+      if (parseFloat(s.avgScore) !== parseFloat(prev.avgScore)) bumpKpi(cards[2]);
+      if ((s.totalCurrentEstimatedEpochRewards ?? 0) !== (prev.totalCurrentEstimatedEpochRewards ?? 0)) bumpKpi(cards[3]);
+    }
+  }
+
+  function updateHistory(s) {
+    state.history.run.push(s.running ?? 0);
+    state.history.sub.push(s.totalSubmissions ?? 0);
+    state.history.score.push(parseFloat(s.avgScore) || 0);
+    state.history.rew.push(s.totalCurrentEstimatedEpochRewards ?? 0);
+    state.history.sampled.push(s.totalCurrentEpochSampled ?? s.totalSampled ?? 0);
+    for (const k of Object.keys(state.history)) {
+      if (state.history[k].length > MAX_HIST) state.history[k].shift();
+    }
+  }
+
+  function fmtReward(n) {
+    n = Number(n) || 0;
+    return n >= 10000 ? fmtCompact.format(n) : fmt.format(Math.round(n));
+  }
+
+  function setRing(arcId, pctEl, pct) {
+    const r = 42;
+    const CIRC = 2 * Math.PI * r;
+    const arc = document.getElementById(arcId);
+    if (arc) {
+      arc.setAttribute('stroke-dasharray', CIRC.toFixed(3));
+      const off = CIRC * (1 - clamp(pct, 0, 100) / 100);
+      arc.setAttribute('stroke-dashoffset', off.toFixed(3));
+    }
+    const pe = document.getElementById(pctEl);
+    if (pe) {
+      const prev = Number((pe.textContent || '0').replace(/[^\d.\-]/g, '')) || 0;
+      countUp(pe, prev, pct, { decimals: pct >= 10 ? 0 : 1, dur: 800 });
+    }
+  }
+
+  function updateMeta(s) {
+    const set = (id, v) => { const el = $('#' + id); if (el) el.textContent = v; };
+
+    // ── Strip (compact ticker) ─────────────────────────────────────
+    set('sRunning', fmt.format(s.running ?? 0));
+    set('sTotal', fmt.format(s.total ?? 0));
+    set('sStopped', fmt.format(s.stopped ?? 0));
+    set('sTasksNow', fmt.format(s.totalTasks ?? 0));
+    set('sLoad', fmt.format((s.totalTasks ?? 0) + (s.totalPending ?? 0)));
+    set('sPending', fmt.format(s.totalPending ?? 0));
+    set('sSampled', fmt.format(s.totalCurrentEpochSampled ?? s.totalSampled ?? 0));
+    set('sErrors', fmt.format(s.totalErrors ?? 0));
+    const hist = state.history.sub;
+    let tp = 0;
+    if (hist.length >= 2) {
+      const n = Math.min(24, hist.length - 1);
+      tp = Math.max(0, Math.round((hist[hist.length - 1] - hist[hist.length - 1 - n]) * (60 / (n * 2.5))));
+    }
+    set('sThroughput', fmt.format(tp));
+
+    // ── Epoch telemetry panel ──────────────────────────────────────
+    set('mSubmitLog', fmt.format(s.totalSubmissions ?? 0));
+    set('mEpochSub', fmt.format(s.totalCurrentEpochSubmissions ?? 0));
+    set('mEpochSampled', fmt.format(s.totalCurrentEpochSampled ?? 0));
+    set('mActiveEpochSub', fmt.format(s.batch?.submissions ?? 0));
+    set('mActiveEpochSampled', fmt.format(s.batch?.sampled ?? 0));
+    const pe = s.previousEpoch || {};
+    set('mPrevEpochId', pe.epochId || s.previousEpochId || '—');
+    set('mPrevCapped', `${fmt.format(pe.capped ?? 0)} / 1000`);
+    set('mPrevAvg', pe.avgScore ? Number(pe.avgScore).toFixed(1) : '—');
+    set('mPrevSub', fmt.format(s.totalPreviousEpochSubmissions ?? pe.totalSubmissions ?? 0));
+    set('mPrevSampled', fmt.format(s.totalPreviousEpochSampled ?? pe.totalSampled ?? 0));
+    set('mPrevRew', fmtReward(s.totalPreviousEpochRewards));
+    set('mEpochApiRew', fmtReward(s.totalEpochRewards ?? s.totalRewards));
+    set('mEstRew', fmtReward(s.totalEstimatedEpochRewards));
+    set('mLifeRew', fmtReward(s.totalRewardsLifetime));
+    set('mTasksLt', fmt.format(s.totalHistTasks ?? 0));
+    const avgNow = parseFloat(s.avgScore) || 0;
+    set('mAvgNow', avgNow.toFixed(1));
+    set('mAvgLt', parseFloat(s.histAvgScore ?? 0).toFixed(1));
+
+    // ── Score-bucket strip ────────────────────────────────────────
+    const above = s.walletsAvgAbove60 ?? 0;
+    const below = s.walletsAvgBelow60 ?? 0;
+    const exact = s.walletsAvgExact60 ?? 0;
+    const zero  = s.walletsAvgZero ?? 0;
+    const tracked = s.walletsTracked ?? (above + below + exact + zero);
+    const scored_ = above + below + exact;
+    set('sAvgAbove60', fmt.format(above));
+    set('sAvgAbove60Pct', scored_ > 0 ? ((above / scored_) * 100).toFixed(0) + '%' : '—');
+    set('sAvgBelow60', fmt.format(below));
+    set('sAvgBelow60Pct', scored_ > 0 ? ((below / scored_) * 100).toFixed(0) + '%' : '—');
+    set('sAvgUnsampled', fmt.format(s.walletsActiveUnsampled ?? 0));
+    set('sZeroTask', fmt.format(s.walletsZeroTask ?? (1000 - (s.walletsActive ?? 0))));
+    set('sTasksLt', fmt.format(s.totalHistTasks ?? 0));
+    set('sHistAvg', parseFloat(s.histAvgScore ?? 0).toFixed(1));
+    set('sHistEpochs', fmt.format(s.totalHistEpochs ?? 0));
+    set('sWalletsTracked', fmt.format(tracked));
+
+    // ── Cap progression (ring gauges) ─────────────────────────────
+    const totalW = s.total ?? tracked ?? 1000;
+    const capped = s.walletsCapped ?? 0;
+    const halfCap = s.walletsHalfCap ?? 0;
+    const activeW = s.walletsActive ?? 0;
+    const tasksNow = s.totalTasks ?? 0;
+    const maxPossibleTasks = totalW * EPOCH_CAP;
+    const fillPct = maxPossibleTasks > 0 ? (tasksNow / maxPossibleTasks) * 100 : 0;
+    const remaining = Math.max(0, maxPossibleTasks - tasksNow);
+    const sampled = s.totalCurrentEpochSampled ?? 0;
+    const submitted = s.totalCurrentEpochSubmissions ?? 0;
+    const sampleRatio = submitted > 0 ? (sampled / submitted) * 100 : 0;
+
+    set('sWalletsCapped', fmt.format(capped));
+    set('sWalletsCappedTotal', fmt.format(totalW));
+    set('sWalletsHalfCap', fmt.format(halfCap));
+    set('sWalletsHalfTotal', fmt.format(totalW));
+    set('sWalletsActive', fmt.format(activeW));
+    set('sWalletsActiveTotal', fmt.format(totalW));
+    set('sAvgTasksPerWallet', activeW > 0 ? (tasksNow / activeW).toFixed(1) : '0.0');
+    set('sEpochFill', fillPct.toFixed(2));
+    set('sRemainingTasks', fmtCompact.format(remaining));
+    set('sSampleRatio', sampleRatio.toFixed(1));
+    set('sHistEpochsQ', fmt.format(Math.max(0, (s.totalHistEpochs ?? 0) - 1)));
+
+    const denom = Math.max(1, totalW);
+    setRing('arcCapped', 'arcCappedPct', (capped / denom) * 100);
+    setRing('arcHalf',   'arcHalfPct',   (halfCap / denom) * 100);
+    setRing('arcActive', 'arcActivePct', (activeW / denom) * 100);
+    setRing('arcFill',   'arcFillPct',   fillPct);
+
+    const now = new Date();
+    set('metaStamp', now.toTimeString().slice(0, 8) + ' · ' + fmt.format(state.agents.length) + ' agents');
+
+    const sub = document.getElementById('brandSub');
+    if (sub) sub.textContent = `${s.total ?? 0} workers · ${s.running ?? 0} live · ${capped} capped`;
+
+    // ── Batch progression panel ───────────────────────────────────
+    const b = s.batch;
+    if (b) {
+      set('bRange', b.raw || '—');
+      set('bNext', b.nextBatch || 'FINAL');
+      const pct = Math.max(0, Math.min(100, Number(b.cappedPct || 0)));
+      const fill = document.getElementById('bProgress');
+      if (fill) fill.style.width = pct.toFixed(2) + '%';
+
+      const setN = (id, n, dec = 0) => {
+        const el = $('#' + id); if (!el) return;
+        const prev = Number((el.textContent || '0').replace(/,/g, '')) || 0;
+        countUp(el, prev, Number(n) || 0, { decimals: dec });
+      };
+      setN('bCapped', b.capped);
+      set('bTotal', fmt.format(b.total || 0));
+      setN('bHalf', b.halfCap);
+      setN('bActive', b.active);
+      setN('bZero', b.zero);
+      set('bTasks', fmt.format(b.tasks || 0));
+      set('bMax', fmt.format(b.maxTasks || 0));
+      setN('bFill', b.fillPct, 1);
+      setN('bAvg', b.avgScore, 1);
+      set('bAuto', b.autoSwitch ? 'ON' : 'OFF');
+
+      // Queue render
+      const qHost = $('#bQueue');
+      if (qHost && Array.isArray(b.sequence)) {
+        qHost.innerHTML = '';
+        b.sequence.forEach((rng, i) => {
+          const st = i < b.sequenceIndex ? 'done'
+            : i === b.sequenceIndex ? 'active'
+            : 'pending';
+          const lbl = st === 'done' ? 'DONE' : st === 'active' ? 'LIVE' : 'NEXT';
+          const row = document.createElement('div');
+          row.className = 'q-row ' + st;
+          row.innerHTML = `<span class="idx">${i + 1}</span><span class="rng">W${rng}</span><span class="st">${lbl}</span>`;
+          qHost.appendChild(row);
+        });
+      }
+    }
+  }
+
+  // ── Sparklines (KPI mini charts) ──────────────────────────────────
+  function drawSparks() {
+    drawSpark('sparkRun', state.history.run, 'var(--amber)');
+    drawSpark('sparkSub', state.history.sub, 'var(--acid)');
+    drawSpark('sparkScore', state.history.score, 'var(--info)');
+    drawSpark('sparkRew', state.history.rew, 'var(--plum)');
+  }
+  function resolveVar(v) {
+    if (!v || !v.startsWith('var(')) return v;
+    const name = v.match(/--[a-z0-9-]+/)[0];
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#fff';
+  }
+  function drawSpark(id, data, colorVar) {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || canvas.offsetWidth || 260;
+    const h = canvas.clientHeight || 50;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    if (!data || data.length < 2) return;
+    const min = Math.min(...data);
+    const max = Math.max(...data);
+    const range = max - min || 1;
+    const pad = 3;
+    const color = resolveVar(colorVar);
+
+    // area
+    ctx.beginPath();
+    data.forEach((v, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - pad - ((v - min) / range) * (h - pad * 2);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, color + 'cc');
+    grad.addColorStop(1, color + '00');
+    ctx.lineTo(w, h); ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.globalAlpha = 0.38;
+    ctx.fill();
+
+    // line
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    data.forEach((v, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - pad - ((v - min) / range) * (h - pad * 2);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 6;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // pulsing dot at last point
+    const lx = w;
+    const ly = h - pad - ((data[data.length - 1] - min) / range) * (h - pad * 2);
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260);
+    ctx.beginPath();
+    ctx.arc(lx - 2, ly, 2.5 + pulse * 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.45 + pulse * 0.55;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // ── Big chart (throughput) ────────────────────────────────────────
+  function drawChart() {
+    const canvas = document.getElementById('chart');
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const host = canvas.parentElement;
+    const w = host.clientWidth;
+    const h = host.clientHeight - 20;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    // grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 5; i++) {
+      const y = (i / 5) * (h - 20) + 10;
+      ctx.beginPath(); ctx.moveTo(10, y); ctx.lineTo(w - 10, y); ctx.stroke();
+    }
+
+    const series = [
+      { data: state.history.sub, color: resolveVar('var(--amber)'), lw: 2 },
+      { data: state.history.sampled, color: resolveVar('var(--acid)'), lw: 2 },
+      { data: state.history.run, color: resolveVar('var(--info)'), lw: 1.4 },
+    ];
+
+    const all = series.flatMap(s => s.data);
+    if (all.length < 2) return;
+
+    series.forEach((s) => {
+      if (s.data.length < 2) return;
+      const min = Math.min(...s.data);
+      const max = Math.max(...s.data);
+      const range = max - min || 1;
+
+      // smooth curve path
+      const pts = s.data.map((v, i) => ({
+        x: 10 + (i / (s.data.length - 1)) * (w - 20),
+        y: h - 10 - ((v - min) / range) * (h - 30),
+      }));
+
+      // area
+      ctx.beginPath();
+      pts.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else {
+          const prev = pts[i - 1];
+          const cx = (prev.x + pt.x) / 2;
+          ctx.quadraticCurveTo(cx, prev.y, pt.x, pt.y);
+        }
+      });
+      ctx.lineTo(w - 10, h - 10); ctx.lineTo(10, h - 10); ctx.closePath();
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, s.color + '44');
+      grad.addColorStop(1, s.color + '00');
+      ctx.fillStyle = grad; ctx.fill();
+
+      // glow line
+      ctx.beginPath();
+      pts.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else {
+          const prev = pts[i - 1];
+          const cx = (prev.x + pt.x) / 2;
+          ctx.quadraticCurveTo(cx, prev.y, pt.x, pt.y);
+        }
+      });
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = s.lw;
+      ctx.lineJoin = 'round';
+      ctx.shadowColor = s.color;
+      ctx.shadowBlur = 10;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // pulsing tip
+      const last = pts[pts.length - 1];
+      const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 300);
+      ctx.beginPath(); ctx.arc(last.x, last.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = s.color; ctx.fill();
+      ctx.beginPath(); ctx.arc(last.x, last.y, 5 + pulse * 4, 0, Math.PI * 2);
+      ctx.strokeStyle = s.color + '66';
+      ctx.lineWidth = 1; ctx.stroke();
+    });
+  }
+
+  // continuous chart refresh for pulse animation
+  setInterval(() => { if (state.history.sub.length >= 2) { drawChart(); drawSparks(); } }, 150);
+
+  // ── Active view dispatch ──────────────────────────────────────────
+  function renderActiveView() {
+    $('#tabAgentsCount').textContent = fmt.format(state.agents.length);
+    $('#tabWalletsCount').textContent = fmt.format(state.wallets.length);
+    if (state.view === 'agents') renderAgents(); else renderWallets();
+  }
+
+  // ── Filter helper (shared between views) ──────────────────────────
+  function applyFilter(f, row) {
+    if (f === 'running') return row.running;
+    if (f === 'errored') return row.errored;
+    if (f === 'stopped') return !row.running && !row.errored;
+    if (f === 'capped')  return row.tasks >= EPOCH_CAP;
+    if (f === 'halfcap') return row.tasks >= 50;
+    if (f === 'active')  return row.tasks >= 1;
+    if (f === 'zero')    return row.tasks === 0;
+    if (f === 'above60') return row.avg > 60;
+    if (f === 'below60') return row.avg > 0 && row.avg < 60;
+    return true;
+  }
+  function applySort(s, a, b) {
+    if (s === 'numDesc') return b.num - a.num;
+    if (s === 'tasks')   return b.tasks - a.tasks || a.num - b.num;
+    if (s === 'score')   return b.avg - a.avg || a.num - b.num;
+    if (s === 'reward')  return (b.reward || 0) - (a.reward || 0) || a.num - b.num;
+    return a.num - b.num;
+  }
+
+  // ── Agents render ─────────────────────────────────────────────────
+  function renderAgents() {
+    const host = $('#agents');
+    const q = state.search.toLowerCase();
+    const items = state.agents.map(a => {
+      const tasks = a.realTasks ?? a.tasksCompleted ?? 0;
+      const running = a.status === 'running';
+      const errored = (a.errors || 0) > 0 && !running;
+      return {
+        id: a.id,
+        num: parseInt(a.walletNum || a.id || 0, 10) || 0,
+        address: a.address || '',
+        tasks,
+        sampled: a.realSampled ?? a.sampled ?? 0,
+        subs: a.submissions ?? 0,
+        dups: a.duplicates ?? 0,
+        errs: a.errors ?? 0,
+        score: a.realScore ?? a.totalScore ?? 0,
+        avg: Number(a.realScore ?? a.totalScore ?? 0),
+        running, errored,
+        agentRaw: a,
+      };
+    });
+
+    let rows = items;
+    if (state.filter !== 'all') rows = rows.filter(r => applyFilter(state.filter, r));
+    if (q) rows = rows.filter(r =>
+      String(r.id).includes(q) ||
+      String(r.num).includes(q) ||
+      (r.address || '').toLowerCase().includes(q));
+    rows.sort((a, b) => applySort(state.sort, a, b));
+
+    const existing = new Map();
+    host.querySelectorAll('.card').forEach(el => existing.set(el.dataset.id, el));
+    const frag = document.createDocumentFragment();
+
+    rows.slice(0, 500).forEach(r => {
+      const key = 'a' + r.id;
+      let el = existing.get(key);
+      if (!el) {
+        el = document.createElement('article');
+        el.className = 'card';
+        el.dataset.id = key;
+      }
+      existing.delete(key);
+
+      const capped = r.tasks >= EPOCH_CAP;
+      el.classList.toggle('running', r.running);
+      el.classList.toggle('errored', r.errored);
+      el.classList.toggle('stopped', !r.running && !r.errored);
+      el.classList.toggle('capped', capped);
+      el.classList.toggle('zeroTask', r.tasks === 0);
+
+      const pct = clamp((r.tasks / EPOCH_CAP) * 100, 0, 100);
+      el.innerHTML = `
+        <div class="head">
+          <div class="id">#<span>${String(r.id).padStart(3, '0')}</span> <span class="hash">· W${String(r.num).padStart(3,'0')}</span></div>
+          <span class="status"><span class="dot"></span>${capped ? 'Capped' : r.running ? 'Active' : r.errored ? 'Err' : 'Idle'}</span>
+        </div>
+        <div class="addr"><span class="w">W${String(r.num).padStart(3,'0')}</span>${shortAddr(r.address)}</div>
+        <div class="progress"><div class="fill" style="width:${pct}%"></div></div>
+        <div class="grid2">
+          <div class="kv"><span class="k">Tasks</span><span class="v ok">${fmt.format(r.tasks)}/100</span></div>
+          <div class="kv"><span class="k">Score</span><span class="v info">${r.score ? Number(r.score).toFixed(1) : '—'}</span></div>
+          <div class="kv"><span class="k">Sampled</span><span class="v">${fmt.format(r.sampled)}</span></div>
+          <div class="kv"><span class="k">Submits</span><span class="v">${fmt.format(r.subs)}</span></div>
+          <div class="kv"><span class="k">Dups</span><span class="v warn">${fmt.format(r.dups)}</span></div>
+          <div class="kv"><span class="k">Errors</span><span class="v crit">${fmt.format(r.errs)}</span></div>
+        </div>
+      `;
+      frag.appendChild(el);
+    });
+
+    host.replaceChildren(frag);
+  }
+
+  // ── Wallets render (all 1000, sorted by num) ──────────────────────
+  function renderWallets() {
+    const host = $('#wallets');
+    const q = state.search.toLowerCase();
+    const items = state.wallets.map(w => ({
+      id: w.num,
+      num: w.num,
+      address: w.address,
+      tasks: w.tasks,
+      sampled: w.sampled,
+      pending: w.pending,
+      subs: w.epochSubmissions,
+      confirmed: w.confirmed,
+      rejected: w.rejected,
+      avg: w.avgScore,
+      histAvg: w.histAvg,
+      histTasks: w.histTasks,
+      todayAvg: w.todayAvg,
+      reward: w.estReward,
+      totalRewards: w.totalRewards,
+      totalEpochs: w.totalEpochs,
+      credit: w.credit,
+      online: w.online,
+      running: w.online && w.tasks > 0,
+      errored: false,
+    }));
+
+    let rows = items;
+    if (state.filter !== 'all') rows = rows.filter(r => applyFilter(state.filter, r));
+    if (q) rows = rows.filter(r =>
+      String(r.num).includes(q) ||
+      (r.address || '').toLowerCase().includes(q));
+    rows.sort((a, b) => applySort(state.sort, a, b));
+
+    const existing = new Map();
+    host.querySelectorAll('.card').forEach(el => existing.set(el.dataset.id, el));
+    const frag = document.createDocumentFragment();
+
+    rows.slice(0, 1000).forEach(r => {
+      const key = 'w' + r.num;
+      let el = existing.get(key);
+      if (!el) {
+        el = document.createElement('article');
+        el.className = 'card';
+        el.dataset.id = key;
+      }
+      existing.delete(key);
+
+      const capped = r.tasks >= EPOCH_CAP;
+      const active = r.tasks >= 1;
+      const hasErrors = r.rejected > 0;
+      el.classList.toggle('running', active && !capped);
+      el.classList.toggle('capped', capped);
+      el.classList.toggle('errored', hasErrors && !active);
+      el.classList.toggle('stopped', !active && !hasErrors);
+      el.classList.toggle('zeroTask', r.tasks === 0);
+
+      const pct = clamp((r.tasks / EPOCH_CAP) * 100, 0, 100);
+      const avgCls = r.avg === 0 ? '' : r.avg >= 60 ? 'ok' : 'warn';
+      const histCls = r.histAvg >= 60 ? 'ok' : r.histAvg > 0 ? 'warn' : '';
+      const statusLbl = capped ? 'Capped'
+        : r.tasks >= 50 ? 'HalfCap'
+        : r.tasks > 0 ? 'Active'
+        : 'Zero';
+
+      el.innerHTML = `
+        <div class="head">
+          <div class="id">W<span>${String(r.num).padStart(3, '0')}</span> <span class="hash">· ${r.totalEpochs}ep</span></div>
+          <span class="status"><span class="dot"></span>${statusLbl}</span>
+        </div>
+        <div class="addr"><span class="w">#${String(r.num).padStart(3,'0')}</span>${shortAddr(r.address)}</div>
+        <div class="progress"><div class="fill" style="width:${pct}%"></div></div>
+        <div class="grid3">
+          <div class="kv"><span class="k">Tasks</span><span class="v ok">${fmt.format(r.tasks)}/100</span></div>
+          <div class="kv"><span class="k">Sampled</span><span class="v info">${fmt.format(r.sampled)}</span></div>
+          <div class="kv"><span class="k">Pend</span><span class="v">${fmt.format(r.pending)}</span></div>
+          <div class="kv"><span class="k">Avg</span><span class="v ${avgCls}">${r.avg ? Number(r.avg).toFixed(1) : '—'}</span></div>
+          <div class="kv"><span class="k">Hist</span><span class="v ${histCls}">${r.histAvg ? Number(r.histAvg).toFixed(1) : '—'}</span></div>
+          <div class="kv"><span class="k">Today</span><span class="v">${r.todayAvg ? Number(r.todayAvg).toFixed(1) : '—'}</span></div>
+          <div class="kv"><span class="k">Subs</span><span class="v">${fmt.format(r.subs)}</span></div>
+          <div class="kv"><span class="k">OK</span><span class="v ok">${fmt.format(r.confirmed)}</span></div>
+          <div class="kv"><span class="k">Rej</span><span class="v crit">${fmt.format(r.rejected)}</span></div>
+        </div>
+        <div class="meta-tail">
+          <span>hist <span class="ha">${fmt.format(r.histTasks)}</span> tasks · cr ${r.credit}</span>
+          <span>est <span class="rw">${r.reward >= 10000 ? fmtCompact.format(r.reward) : fmt.format(Math.round(r.reward))}</span></span>
+        </div>
+      `;
+      frag.appendChild(el);
+    });
+
+    host.replaceChildren(frag);
+  }
+
+  // ── Logs ──────────────────────────────────────────────────────────
+  function parseLogLine(raw) {
+    if (raw && typeof raw === 'object') {
+      const t = (raw.timestamp || raw.time || '').replace('T', ' ').slice(11, 19);
+      return { time: t, agent: raw.agent, msg: String(raw.message ?? raw.msg ?? raw) };
+    }
+    const s = String(raw || '');
+    const m = s.match(/^\[([\d\- :]+)\]\s*(?:\[Agent\s+(\d+)\])?\s*(.+)$/);
+    if (m) return { time: (m[1] || '').slice(11, 19), agent: m[2], msg: m[3] };
+    return { time: '', agent: null, msg: s };
+  }
+
+  function renderLogs(logs) {
+    const host = $('#logs');
+    if (!Array.isArray(logs) || logs.length === 0) {
+      host.innerHTML = '<div class="log-line info" style="opacity:.6"><span class="m">Awaiting events…</span></div>';
+      $('#logsMeta').textContent = '0 events';
+      return;
+    }
+    const recent = logs.slice(-80).reverse();
+    $('#logsMeta').textContent = recent.length + ' events';
+
+    const sig = JSON.stringify(recent[0]).slice(0, 120);
+    if (host.dataset.sig === sig) return;
+    host.dataset.sig = sig;
+
+    const frag = document.createDocumentFragment();
+    recent.forEach(raw => {
+      const l = parseLogLine(raw);
+      const msg = l.msg.slice(0, 240);
+      const cls = /error|fail|✗|401|403|404|429|500|crit/i.test(msg) ? 'err'
+                : /submitted|success|✓|enriched|relayed|registered/i.test(msg) ? 'ok'
+                : /warn|retry|timeout|rate[- ]?limit|slow/i.test(msg) ? 'warn'
+                : /\[LLM\]|\[WS\]|\[ROTATE\]|\[ctrl\]/i.test(msg) ? 'info'
+                : 'info';
+      const div = document.createElement('div');
+      div.className = 'log-line ' + cls;
+      const agent = l.agent ? `<span class="a">a${String(l.agent).padStart(3,'0')}</span>` : '';
+      div.innerHTML = `<span class="t">${l.time || '--:--:--'}</span>${agent}<span class="m">${escapeHtml(msg)}</span>`;
+      frag.appendChild(div);
+    });
+    host.replaceChildren(frag);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
+  // ── Clock ─────────────────────────────────────────────────────────
+  setInterval(() => {
+    const d = new Date();
+    $('#clockTxt').textContent = d.toTimeString().slice(0, 8);
+    // Use API-provided currentEpochId (authoritative) with local-date fallback
+    const epoch = state.stats?.currentEpochId || d.toISOString().slice(0, 10);
+    $('#epochTxt').textContent = `Epoch ${epoch}`;
+    // Flash chip briefly on rollover
+    const chip = $('#chipEpoch');
+    if (state.stats?.epochRolledOver && chip && !chip.classList.contains('live')) {
+      chip.classList.add('live');
+      setTimeout(() => chip.classList.remove('live'), 30_000);
+    }
+  }, 1000);
+
+  // ── Controls ──────────────────────────────────────────────────────
+  $('#search').addEventListener('input', (e) => { state.search = e.target.value; renderActiveView(); });
+  $('#filter').addEventListener('change', (e) => { state.filter = e.target.value; renderActiveView(); });
+  $('#sort').addEventListener('change', (e) => { state.sort = e.target.value; renderActiveView(); });
+
+  // Tabs: Agents | Wallets
+  document.querySelectorAll('#tabs .tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('#tabs .tab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      state.view = t.dataset.view;
+      $('#agents').style.display  = state.view === 'agents'  ? '' : 'none';
+      $('#wallets').style.display = state.view === 'wallets' ? '' : 'none';
+      const ph = state.view === 'wallets'
+        ? 'Search by wallet number or address…'
+        : 'Search by worker ID, wallet, or address…';
+      $('#search').placeholder = ph;
+      renderActiveView();
+    });
+  });
+
+  $('#btnPause').addEventListener('click', () => {
+    state.paused = !state.paused;
+    $('#btnPause').querySelector('span:last-child').textContent = state.paused ? 'Resume' : 'Pause';
+  });
+  $('#btnRefresh').addEventListener('click', poll);
+  $('#btnStartAll').addEventListener('click', () => fetch('/api/start-all', { method: 'POST' }).then(poll));
+  $('#btnStopAll').addEventListener('click', () => {
+    if (!confirm('Stop all workers?')) return;
+    fetch('/api/stop-all', { method: 'POST' }).then(poll);
+  });
+
+  window.addEventListener('resize', () => { drawSparks(); drawChart(); });
+
+  // ────────────────────────────────────────────────────────────────
+  // ░░  NEXT-LEVEL INTERACTIONS (v2)                               ░░
+  // ░░  cursor glow · card spotlight · magnetic btn · confetti ·   ░░
+  // ░░  text scramble · live ticker · scroll reveal                 ░░
+  // ────────────────────────────────────────────────────────────────
+
+  // ── Cursor spotlight: soft light orb following pointer ─────────
+  const cursorGlow = document.getElementById('cursorGlow');
+  if (cursorGlow) {
+    let cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+    let tx = cx, ty = cy;
+    window.addEventListener('pointermove', (e) => {
+      tx = e.clientX; ty = e.clientY;
+      cursorGlow.classList.add('on');
+    });
+    window.addEventListener('pointerleave', () => cursorGlow.classList.remove('on'));
+    // smooth easing
+    (function loop() {
+      cx += (tx - cx) * 0.15;
+      cy += (ty - cy) * 0.15;
+      cursorGlow.style.transform = `translate3d(${cx}px, ${cy}px, 0) translate(-50%, -50%)`;
+      requestAnimationFrame(loop);
+    })();
+  }
+
+  // ── Card spotlight follow + inject .spotlight & .glint ─────────
+  function installSpotlights() {
+    const sel = '.kpi, .ring-card, .batch-panel, .panel, .chip-stat, .card';
+    document.querySelectorAll(sel).forEach(el => {
+      if (el.dataset.spot) return;
+      el.dataset.spot = '1';
+      // spotlight layer
+      const sp = document.createElement('div');
+      sp.className = 'spotlight';
+      el.prepend(sp);
+      // glint layer (only for kpi/card)
+      if (el.classList.contains('kpi') || el.classList.contains('card')) {
+        const gl = document.createElement('div');
+        gl.className = 'glint';
+        el.appendChild(gl);
+      }
+      el.addEventListener('pointermove', (ev) => {
+        const r = el.getBoundingClientRect();
+        const x = ((ev.clientX - r.left) / r.width) * 100;
+        const y = ((ev.clientY - r.top) / r.height) * 100;
+        el.style.setProperty('--mx', x + '%');
+        el.style.setProperty('--my', y + '%');
+      });
+    });
+  }
+  installSpotlights();
+  // re-install after new .card renders (mutation-based would be heavy; timer is fine)
+  setInterval(installSpotlights, 2200);
+
+  // ── Magnetic buttons (primary chip/btn gentle pull) ───────────
+  document.querySelectorAll('.btn, .chip').forEach(el => {
+    const strength = el.classList.contains('primary') ? 8 : 5;
+    el.addEventListener('pointermove', (ev) => {
+      const r = el.getBoundingClientRect();
+      const x = (ev.clientX - r.left - r.width / 2) / r.width;
+      const y = (ev.clientY - r.top - r.height / 2) / r.height;
+      el.style.transform = `translate(${(x * strength).toFixed(2)}px, ${(y * strength).toFixed(2)}px)`;
+    });
+    el.addEventListener('pointerleave', () => {
+      el.style.transform = '';
+    });
+  });
+
+  // ── Number scramble: glitch-flash the digit on update ─────────
+  function scrambleFlash(el) {
+    if (!el) return;
+    el.classList.remove('scramble');
+    void el.offsetWidth;
+    el.classList.add('scramble');
+  }
+  // hook into existing `countUp` indirectly: when .num text changes from a different value,
+  // observe via a MutationObserver on each KPI `.num`
+  document.querySelectorAll('.kpi .num, .kpi-value .num').forEach(el => {
+    let prev = el.textContent;
+    const mo = new MutationObserver(() => {
+      if (el.textContent !== prev) {
+        scrambleFlash(el);
+        prev = el.textContent;
+      }
+    });
+    mo.observe(el, { characterData: true, childList: true, subtree: true });
+  });
+
+  // ── Confetti: celebration burst ──────────────────────────────
+  const confettiCanvas = document.getElementById('confetti');
+  const cctx = confettiCanvas ? confettiCanvas.getContext('2d') : null;
+  let confetti = [];
+  function resizeConfetti() {
+    if (!confettiCanvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    confettiCanvas.width = window.innerWidth * dpr;
+    confettiCanvas.height = window.innerHeight * dpr;
+    confettiCanvas.style.width = window.innerWidth + 'px';
+    confettiCanvas.style.height = window.innerHeight + 'px';
+    cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resizeConfetti();
+  window.addEventListener('resize', resizeConfetti);
+
+  function emitConfetti(n = 120, origin) {
+    if (!cctx) return;
+    const colors = ['#ffb020', '#7dff54', '#6cb4ff', '#b57bff', '#4fe3d9', '#ff8a3d'];
+    const cx = origin?.x ?? window.innerWidth / 2;
+    const cy = origin?.y ?? window.innerHeight / 3;
+    for (let i = 0; i < n; i++) {
+      const angle = (Math.PI * 2 * i) / n + Math.random() * 0.2;
+      const sp = 4 + Math.random() * 10;
+      confetti.push({
+        x: cx, y: cy,
+        vx: Math.cos(angle) * sp * (0.6 + Math.random() * 0.8),
+        vy: Math.sin(angle) * sp * (0.6 + Math.random() * 0.8) - 3,
+        g: 0.15 + Math.random() * 0.1,
+        size: 3 + Math.random() * 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 0.3,
+        life: 0, maxLife: 180 + Math.random() * 60,
+        shape: Math.random() < 0.5 ? 'sq' : 'rect',
+      });
+    }
+  }
+  function tickConfetti() {
+    if (!cctx) return;
+    const w = window.innerWidth, h = window.innerHeight;
+    cctx.clearRect(0, 0, w, h);
+    confetti = confetti.filter(p => p.life < p.maxLife && p.y < h + 30);
+    for (const p of confetti) {
+      p.vy += p.g;
+      p.vx *= 0.995;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr;
+      p.life++;
+      const alpha = Math.max(0, 1 - p.life / p.maxLife);
+      cctx.save();
+      cctx.translate(p.x, p.y);
+      cctx.rotate(p.rot);
+      cctx.globalAlpha = alpha;
+      cctx.fillStyle = p.color;
+      cctx.shadowColor = p.color;
+      cctx.shadowBlur = 8;
+      if (p.shape === 'sq') cctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      else cctx.fillRect(-p.size, -p.size / 3, p.size * 2, p.size / 1.5);
+      cctx.restore();
+    }
+    requestAnimationFrame(tickConfetti);
+  }
+  tickConfetti();
+
+  // Celebrate on cap milestones (detected via walletsCapped increase)
+  state.lastCapped = null;
+  const origCelebrate = (curr, prev) => {
+    if (prev == null) return;
+    if (curr > prev) {
+      // small burst from top-center
+      emitConfetti(80, { x: window.innerWidth / 2, y: 160 });
+    }
+  };
+  // hook: patch update() indirectly via interval scan
+  setInterval(() => {
+    const s = state.stats;
+    if (!s) return;
+    const capped = s.walletsCapped ?? 0;
+    if (state.lastCapped !== null && capped > state.lastCapped) {
+      origCelebrate(capped, state.lastCapped);
+    }
+    state.lastCapped = capped;
+  }, 1500);
+
+  // ── Live ticker populator ──────────────────────────────────────
+  function formatCompact(n) {
+    n = Number(n) || 0;
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
+    if (n >= 10_000)    return (n / 1_000).toFixed(1) + 'K';
+    if (n >= 1_000)     return (n / 1_000).toFixed(2) + 'K';
+    return Math.round(n).toLocaleString('en-US');
+  }
+  function renderTicker() {
+    const track = document.getElementById('tickerTrack');
+    if (!track) return;
+    const s = state.stats || {};
+    const running = s.running ?? 0;
+    const total = s.total ?? 0;
+    const subs = s.totalSubmissions ?? 0;
+    const eSubs = s.totalCurrentEpochSubmissions ?? 0;
+    const sampled = s.totalCurrentEpochSampled ?? 0;
+    const score = parseFloat(s.avgScore) || 0;
+    const histAvg = parseFloat(s.histAvgScore) || 0;
+    const rew = s.totalCurrentEstimatedEpochRewards ?? s.totalEstimatedEpochRewards ?? 0;
+    const lifetime = s.totalRewardsLifetime ?? 0;
+    const capped = s.walletsCapped ?? 0;
+    const halfCap = s.walletsHalfCap ?? 0;
+    const active = s.walletsActive ?? 0;
+    const zero = s.walletsZeroTask ?? 0;
+    const errors = s.totalErrors ?? 0;
+    const above60 = s.walletsAvgAbove60 ?? 0;
+    const epoch = s.currentEpochId || '—';
+
+    const items = [
+      { c: 'acid',  k: 'WORKERS',       v: `${running}/${total}` },
+      { c: 'amber', k: 'SUBMITS',       v: formatCompact(subs) },
+      { c: 'acid',  k: 'FLEET SUBMITS', v: formatCompact(eSubs) },
+      { c: 'info',  k: 'FLEET SAMPLED', v: formatCompact(sampled) },
+      { c: 'cyan',  k: 'POOL SUBMITS',  v: formatCompact(s.batch?.submissions ?? 0) },
+      { c: 'cyan',  k: 'POOL SAMPLED',  v: formatCompact(s.batch?.sampled ?? 0) },
+      { c: 'info',  k: 'AVG SCORE',     v: score.toFixed(1) },
+      { c: 'cyan',  k: 'HIST AVG',      v: histAvg.toFixed(1) },
+      { c: 'plum',  k: 'EPOCH REW',     v: formatCompact(rew) + ' AWP' },
+      { c: 'plum',  k: 'LIFETIME',      v: formatCompact(lifetime) + ' AWP' },
+      { c: 'cyan',  k: 'CAPPED 100',    v: `${capped} / 1000` },
+      { c: 'amber', k: '≥50',           v: halfCap.toString() },
+      { c: 'info',  k: 'ACTIVE',        v: active.toString() },
+      { c: 'warn',  k: 'ZERO',          v: zero.toString() },
+      { c: 'acid',  k: 'AVG>60',        v: above60.toString() },
+      { c: 'warn',  k: 'ERRORS',        v: errors.toString() },
+      { c: 'info',  k: 'EPOCH',         v: epoch },
+    ];
+    // Duplicate for seamless marquee loop
+    const html = [...items, ...items].map(it =>
+      `<span class="ticker-item ${it.c}"><span class="mk"></span>${it.k}&nbsp;<b>${it.v}</b></span>`
+    ).join('');
+    track.innerHTML = html;
+  }
+  // Throttle: only re-render when stats signature changes
+  let lastTickerSig = '';
+  setInterval(() => {
+    const s = state.stats || {};
+    const sig = [
+      s.running, s.total, s.totalSubmissions, s.totalCurrentEpochSubmissions,
+      s.totalCurrentEpochSampled, s.avgScore, s.histAvgScore,
+      s.totalCurrentEstimatedEpochRewards, s.totalRewardsLifetime,
+      s.walletsCapped, s.walletsHalfCap, s.walletsActive, s.walletsZeroTask,
+      s.walletsAvgAbove60, s.totalErrors, s.currentEpochId,
+    ].join('|');
+    if (sig !== lastTickerSig) {
+      renderTicker();
+      lastTickerSig = sig;
+    }
+  }, 1200);
+
+  // ── Scroll reveal: stagger hero/strip/panel entry ──────────────
+  const revealIO = ('IntersectionObserver' in window)
+    ? new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add('in');
+            revealIO.unobserve(e.target);
+          }
+        });
+      }, { rootMargin: '120px 0px', threshold: 0.01 })
+    : null;
+  function armReveal() {
+    document.querySelectorAll(
+      '.strip, .rings, .batchbar, .panel-row, .toolbar, .main, .api-banner'
+    ).forEach((el, i) => {
+      if (el.dataset.revealed) return;
+      el.dataset.revealed = '1';
+      el.classList.add('reveal');
+      el.style.transitionDelay = (Math.min(i, 6) * 60) + 'ms';
+      // Very tall sections like the card/log grid can never satisfy a
+      // non-trivial IntersectionObserver threshold, so reveal them eagerly.
+      if (!revealIO || el.classList.contains('main') || el.scrollHeight > window.innerHeight * 1.5) {
+        requestAnimationFrame(() => el.classList.add('in'));
+        return;
+      }
+      revealIO.observe(el);
+    });
+  }
+  armReveal();
+  // re-arm for any late-injected panels
+  setTimeout(armReveal, 300);
+  setTimeout(armReveal, 1200);
+
+  // ── Parallax background (subtle drift with scroll/pointer) ─────
+  (function parallax() {
+    let mx = 0, my = 0, sy = 0;
+    window.addEventListener('pointermove', (ev) => {
+      mx = (ev.clientX / window.innerWidth  - 0.5);
+      my = (ev.clientY / window.innerHeight - 0.5);
+    });
+    window.addEventListener('scroll', () => { sy = window.scrollY; });
+    const aurora = document.querySelector('.bg-aurora');
+    const mesh   = document.querySelector('.bg-mesh');
+    const grid   = document.querySelector('.bg-grid');
+    (function loop() {
+      if (aurora) aurora.style.setProperty('--px', (mx * -40).toFixed(1) + 'px');
+      if (mesh)   mesh.style.transform    = `translate3d(${(mx * -18).toFixed(1)}px, ${(my * -12).toFixed(1)}px, 0)`;
+      if (grid)   grid.style.transform    = `translate3d(${(mx * -6).toFixed(1)}px, ${(sy * -0.08).toFixed(1)}px, 0)`;
+      requestAnimationFrame(loop);
+    })();
+  })();
+
+  // ── Initial ticker paint + hero reveal ─────────────────────────
+  renderTicker();
+
+  // kick off
+  poll();
+})();
+</script>
+</body>
+</html>
